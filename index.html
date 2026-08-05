@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Mark accurate intro, recap, and outro timestamps for IntroDB." />
+    <meta name="theme-color" content="#171a18" />
+    <title>Cutmark — IntroDB timestamp tool</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="Cutmark home">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span>Cutmark</span>
+      </a>
+      <div class="header-actions">
+        <span class="local-badge"><span></span> Local-only media</span>
+        <a href="https://introdb.app/docs/api" target="_blank" rel="noreferrer">API docs ↗</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="page-title">
+        <div>
+          <p class="eyebrow">INTRODB CONTRIBUTOR TOOL</p>
+          <h1 id="page-title">Find the cut.<br /><em>Mark the moment.</em></h1>
+        </div>
+        <p class="hero-copy">Load an episode, capture its recap, intro, and outro boundaries, then hand off clean payloads for IntroDB. Your media never leaves this device.</p>
+      </section>
+
+      <section class="workspace">
+        <div class="player-panel">
+          <div class="player-shell" id="drop-zone">
+            <video id="video" controls preload="metadata" playsinline hidden></video>
+            <div class="empty-player" id="empty-player">
+              <div class="reel" aria-hidden="true">＋</div>
+              <h2>Drop an episode here</h2>
+              <p>MP4, WebM, MKV, or any format your browser can play</p>
+              <button class="primary" id="choose-file" type="button">Choose media file</button>
+              <input id="file-input" type="file" accept="video/*,.mkv" hidden />
+            </div>
+          </div>
+
+          <div class="transport" aria-label="Playback controls">
+            <button class="icon-button" data-seek="-10" type="button" aria-label="Back 10 seconds">−10</button>
+            <button class="play-button" id="play-toggle" type="button" aria-label="Play or pause">▶</button>
+            <button class="icon-button" data-seek="10" type="button" aria-label="Forward 10 seconds">+10</button>
+            <output id="current-time" aria-live="off">00:00:00.000</output>
+            <span class="duration" id="duration">/ 00:00:00.000</span>
+            <span class="shortcut-hint"><kbd>Space</kbd> play · <kbd>←</kbd><kbd>→</kbd> ±5s</span>
+          </div>
+        </div>
+
+        <aside class="details-panel" aria-labelledby="episode-heading">
+          <div class="panel-heading">
+            <p class="step">01</p>
+            <div><h2 id="episode-heading">Episode identity</h2><p>Tell IntroDB what you’re watching.</p></div>
+          </div>
+          <div class="field full">
+            <label for="imdb-id">IMDb title ID</label>
+            <input id="imdb-id" autocomplete="off" inputmode="text" placeholder="tt0903747" pattern="tt[0-9]{7,8}" />
+            <small>From the IMDb URL, e.g. <strong>tt0903747</strong></small>
+          </div>
+          <div class="field-row">
+            <div class="field"><label for="season">Season</label><input id="season" type="number" min="1" value="1" /></div>
+            <div class="field"><label for="episode">Episode</label><input id="episode" type="number" min="1" value="1" /></div>
+          </div>
+          <details>
+            <summary>Optional matching IDs</summary>
+            <div class="field-row optional-fields">
+              <div class="field"><label for="tvdb-id">TVDB series ID</label><input id="tvdb-id" type="number" min="1" placeholder="81189" /></div>
+              <div class="field"><label for="tmdb-id">TMDB series ID</label><input id="tmdb-id" type="number" min="1" placeholder="1396" /></div>
+            </div>
+          </details>
+        </aside>
+      </section>
+
+      <section class="markers-section" aria-labelledby="markers-heading">
+        <div class="section-heading">
+          <div><p class="step">02</p><h2 id="markers-heading">Mark the segments</h2></div>
+          <p>Pause at a boundary, then capture it. Fine-tune any value by typing a timestamp.</p>
+        </div>
+        <div class="marker-grid" id="marker-grid"></div>
+      </section>
+
+      <section class="export-section" aria-labelledby="export-heading">
+        <div class="panel-heading">
+          <p class="step">03</p>
+          <div><h2 id="export-heading">Review &amp; hand off</h2><p id="payload-summary">Complete a segment to create an IntroDB payload.</p></div>
+        </div>
+        <div class="export-actions">
+          <button class="primary" id="copy-json" type="button" disabled>Copy JSON</button>
+          <button class="secondary" id="copy-curl" type="button" disabled>Copy cURL</button>
+          <button class="secondary" id="download-json" type="button" disabled>Download</button>
+          <button class="secondary" id="create-issue" type="button" disabled>Create review issue ↗</button>
+        </div>
+        <div class="notice">
+          <strong>Why hand off?</strong>
+          <span>IntroDB currently permits browser API requests only from introdb.app. Cutmark prepares valid requests without putting an API key in a public GitHub Pages site.</span>
+        </div>
+        <pre id="payload-preview" aria-label="Generated IntroDB payload">No complete segments yet.</pre>
+      </section>
+    </main>
+
+    <footer>
+      <p>Built for careful watching. Intro data provided by <a href="https://introdb.app" target="_blank" rel="noreferrer">IntroDB ↗</a></p>
+      <p>Cutmark is an independent community tool.</p>
+    </footer>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

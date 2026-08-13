@@ -4,6 +4,10 @@ A lightweight, privacy-first timestamp marker for contributing recap, intro, and
 
 Cutmark runs entirely in the browser. Media files are opened with a local object URL and are never uploaded. It generates valid IntroDB API payloads, cURL commands, JSON downloads, and prefilled GitHub review issues.
 
+It also supports title search through TVmaze, device-local show bookmarks, and intro-duration shortcuts scoped to a whole show or one season. A season rule takes precedence over its show's general rule. For example, a saved 50-second season rule turns an intro start at `00:00:30` into an end at `00:01:20` automatically.
+
+Bookmarks and duration rules are saved in that browser's local storage. They survive reloads but do not sync between browsers or devices.
+
 ## Run locally
 
 Any static file server works. For example:

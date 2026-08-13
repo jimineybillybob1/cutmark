@@ -1,9 +1,10 @@
 export function formatTime(value) {
   const seconds = Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0;
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const whole = Math.floor(seconds % 60);
-  const millis = Math.round((seconds - Math.floor(seconds)) * 1000);
+  const totalMillis = Math.round(seconds * 1000);
+  const hours = Math.floor(totalMillis / 3_600_000);
+  const minutes = Math.floor((totalMillis % 3_600_000) / 60_000);
+  const whole = Math.floor((totalMillis % 60_000) / 1000);
+  const millis = totalMillis % 1000;
   return [hours, minutes, whole].map((part) => String(part).padStart(2, "0")).join(":") + `.${String(millis).padStart(3, "0")}`;
 }
 
@@ -46,4 +47,38 @@ export function validateMeta(meta) {
   if (!Number.isInteger(Number(meta.season)) || Number(meta.season) < 1) return "Season must be 1 or higher.";
   if (!Number.isInteger(Number(meta.episode)) || Number(meta.episode) < 1) return "Episode must be 1 or higher.";
   return "";
+}
+
+export function resolveIntroDuration(defaults, imdbId, season) {
+  const rules = defaults?.[imdbId];
+  if (!rules) return null;
+  const seasonValue = Number(rules.seasons?.[String(season)]);
+  if (Number.isFinite(seasonValue) && seasonValue > 0) return { seconds: seasonValue, scope: "season" };
+  const showValue = Number(rules.show);
+  if (Number.isFinite(showValue) && showValue > 0) return { seconds: showValue, scope: "show" };
+  return null;
+}
+
+export function calculateIntroEnd(start, duration) {
+  const startSeconds = parseTime(start);
+  const durationSeconds = Number(duration);
+  if (startSeconds === null || !Number.isFinite(durationSeconds) || durationSeconds <= 0) return null;
+  return Number((startSeconds + durationSeconds).toFixed(3));
+}
+
+export function mapTvmazeShows(results) {
+  if (!Array.isArray(results)) return [];
+  return results.flatMap((result) => {
+    const show = result?.show;
+    const imdbId = show?.externals?.imdb || "";
+    if (!/^tt\d{7,8}$/.test(imdbId)) return [];
+    return [{
+      name: String(show.name || imdbId),
+      imdbId,
+      tvdbId: Number(show.externals?.thetvdb) || null,
+      image: show.image?.medium || "",
+      premiered: show.premiered || "",
+      network: show.network?.name || show.webChannel?.name || "",
+    }];
+  }).slice(0, 8);
 }

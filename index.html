@@ -57,10 +57,27 @@
             <p class="step">01</p>
             <div><h2 id="episode-heading">Episode identity</h2><p>Tell IntroDB what you’re watching.</p></div>
           </div>
-          <div class="field full">
+          <div class="show-search">
+            <label for="show-search">Find a TV show</label>
+            <div class="search-entry">
+              <input id="show-search" autocomplete="off" placeholder="Search by title…" />
+              <button id="search-shows" type="button">Search</button>
+            </div>
+            <div class="search-results" id="search-results" hidden></div>
+          </div>
+          <div class="saved-shows" id="saved-shows" hidden>
+            <div class="saved-heading"><span>Bookmarked shows</span><span>Stored on this device</span></div>
+            <div class="bookmark-list" id="bookmark-list"></div>
+          </div>
+          <div class="selected-show" id="selected-show" hidden>
+            <img id="selected-poster" alt="" hidden />
+            <div><strong id="selected-title"></strong><span id="selected-meta"></span></div>
+            <button class="bookmark-button" id="bookmark-show" type="button" aria-label="Bookmark selected show">☆</button>
+          </div>
+          <div class="field full imdb-field">
             <label for="imdb-id">IMDb title ID</label>
             <input id="imdb-id" autocomplete="off" inputmode="text" placeholder="tt0903747" pattern="tt[0-9]{7,8}" />
-            <small>From the IMDb URL, e.g. <strong>tt0903747</strong></small>
+            <small>Filled by title search, or enter one manually.</small>
           </div>
           <div class="field-row">
             <div class="field"><label for="season">Season</label><input id="season" type="number" min="1" value="1" /></div>
@@ -73,6 +90,19 @@
               <div class="field"><label for="tmdb-id">TMDB series ID</label><input id="tmdb-id" type="number" min="1" placeholder="1396" /></div>
             </div>
           </details>
+          <div class="intro-defaults">
+            <div class="defaults-heading"><strong>Intro duration shortcut</strong><span id="active-default">No default set</span></div>
+            <p>Set a usual duration, then capturing an intro start will fill its end automatically.</p>
+            <div class="default-controls">
+              <select id="default-scope" aria-label="Default duration scope">
+                <option value="season">This season</option>
+                <option value="show">Every season</option>
+              </select>
+              <div class="seconds-input"><input id="default-duration" type="number" min="1" max="900" step="0.1" placeholder="50" /><span>sec</span></div>
+              <button id="save-default" type="button">Save</button>
+            </div>
+            <button class="remove-default" id="remove-default" type="button" hidden>Remove active default</button>
+          </div>
         </aside>
       </section>
 
@@ -104,7 +134,7 @@
     </main>
 
     <footer>
-      <p>Built for careful watching. Intro data provided by <a href="https://introdb.app" target="_blank" rel="noreferrer">IntroDB ↗</a></p>
+      <p>Built for careful watching. Intro data by <a href="https://introdb.app" target="_blank" rel="noreferrer">IntroDB ↗</a> · Title search by <a href="https://www.tvmaze.com/api" target="_blank" rel="noreferrer">TVmaze ↗</a></p>
       <p>Cutmark is an independent community tool.</p>
     </footer>
 

@@ -1,4 +1,4 @@
-import { buildPayloads, formatTime, parseTime, validateMeta } from "./core.js";
+import { buildPayloads, calculateIntroEnd, formatTime, mapTvmazeShows, parseTime, resolveIntroDuration, validateMeta } from "./core.js";
 
 const types = [
   { id: "recap", accent: "#76a7ff", description: "Previously-on material before the episode begins." },
@@ -13,6 +13,28 @@ const emptyPlayer = $("#empty-player");
 const dropZone = $("#drop-zone");
 let objectUrl = "";
 let toastTimer;
+let searchResults = [];
+let selectedShow = null;
+const storageKey = "cutmark-library-v1";
+const library = loadLibrary();
+
+function loadLibrary() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(storageKey) || "{}");
+    return { bookmarks: Array.isArray(saved.bookmarks) ? saved.bookmarks : [], defaults: saved.defaults && typeof saved.defaults === "object" ? saved.defaults : {} };
+  } catch {
+    return { bookmarks: [], defaults: {} };
+  }
+}
+
+function saveLibrary() {
+  try { localStorage.setItem(storageKey, JSON.stringify(library)); }
+  catch { toast("This browser could not save local preferences"); }
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]);
+}
 
 function renderCards() {
   $("#marker-grid").innerHTML = types.map(({ id, accent, description }, index) => `
@@ -40,6 +62,89 @@ function metadata() {
     tvdb_id: $("#tvdb-id").value,
     tmdb_id: $("#tmdb-id").value,
   };
+}
+
+function renderBookmarks() {
+  const container = $("#saved-shows");
+  container.hidden = library.bookmarks.length === 0;
+  $("#bookmark-list").innerHTML = library.bookmarks.map((show) => `<button class="bookmark-chip${show.imdbId === metadata().imdb_id ? " active" : ""}" type="button" data-bookmark-id="${escapeHtml(show.imdbId)}">${escapeHtml(show.name)}</button>`).join("");
+}
+
+function renderSelectedShow() {
+  const panel = $("#selected-show");
+  if (!selectedShow) { panel.hidden = true; return; }
+  panel.hidden = false;
+  $("#selected-title").textContent = selectedShow.name;
+  $("#selected-meta").textContent = [selectedShow.premiered?.slice(0, 4), selectedShow.imdbId].filter(Boolean).join(" · ");
+  const poster = $("#selected-poster");
+  poster.hidden = !selectedShow.image;
+  if (selectedShow.image) poster.src = selectedShow.image;
+  poster.alt = selectedShow.image ? `${selectedShow.name} poster` : "";
+  const saved = library.bookmarks.some((show) => show.imdbId === selectedShow.imdbId);
+  $("#bookmark-show").textContent = saved ? "★" : "☆";
+  $("#bookmark-show").classList.toggle("saved", saved);
+  $("#bookmark-show").setAttribute("aria-label", saved ? `Remove ${selectedShow.name} bookmark` : `Bookmark ${selectedShow.name}`);
+}
+
+function selectShow(show) {
+  selectedShow = show;
+  $("#imdb-id").value = show.imdbId;
+  $("#tvdb-id").value = show.tvdbId || "";
+  $("#show-search").value = show.name;
+  $("#search-results").hidden = true;
+  renderSelectedShow();
+  renderBookmarks();
+  updateDefaultUI();
+  updateOutput();
+}
+
+async function searchShows() {
+  const query = $("#show-search").value.trim();
+  if (query.length < 2) return toast("Enter at least two letters");
+  const panel = $("#search-results");
+  panel.hidden = false;
+  panel.innerHTML = '<p class="search-message">Searching…</p>';
+  $("#search-shows").disabled = true;
+  try {
+    const response = await fetch(`https://api.tvmaze.com/search/shows?q=${encodeURIComponent(query)}`);
+    if (!response.ok) throw new Error(`Search returned ${response.status}`);
+    searchResults = mapTvmazeShows(await response.json());
+    if (!searchResults.length) {
+      panel.innerHTML = '<p class="search-message">No shows with an IMDb ID found. Try another title.</p>';
+      return;
+    }
+    panel.innerHTML = searchResults.map((show, index) => `<button class="search-result" type="button" data-result-index="${index}">
+      ${show.image ? `<img src="${escapeHtml(show.image)}" alt="" />` : '<span aria-hidden="true"></span>'}
+      <span><strong>${escapeHtml(show.name)}</strong><span>${escapeHtml([show.premiered?.slice(0, 4), show.network].filter(Boolean).join(" · "))}</span></span>
+      <code>${escapeHtml(show.imdbId)}</code>
+    </button>`).join("");
+  } catch {
+    panel.innerHTML = '<p class="search-message">Title search is unavailable right now. You can still enter the IMDb ID manually.</p>';
+  } finally {
+    $("#search-shows").disabled = false;
+  }
+}
+
+function activeIntroDefault() {
+  return resolveIntroDuration(library.defaults, metadata().imdb_id.trim(), metadata().season);
+}
+
+function updateDefaultUI() {
+  const active = activeIntroDefault();
+  $("#active-default").textContent = active ? `${active.seconds}s · ${active.scope === "season" ? `season ${metadata().season}` : "whole show"}` : "No default set";
+  $("#remove-default").hidden = !active;
+}
+
+function applyIntroDefault(announce = false) {
+  const active = activeIntroDefault();
+  const end = active && calculateIntroEnd(segments.intro.start, active.seconds);
+  if (end === null) return false;
+  const value = formatTime(end);
+  segments.intro.end = value;
+  $("#intro-end").value = value;
+  if (announce) toast(`Intro end set ${active.seconds}s after its start`);
+  updateOutput();
+  return true;
 }
 
 function updateOutput() {
@@ -79,6 +184,7 @@ function capture(type, boundary) {
   const value = formatTime(video.currentTime);
   segments[type][boundary] = value;
   $(`#${type}-${boundary}`).value = value;
+  if (type === "intro" && boundary === "start") applyIntroDefault(true);
   updateOutput();
 }
 
@@ -94,7 +200,7 @@ async function copyText(text, message) {
 }
 
 function makeCurl(payloads) {
-  return payloads.map((payload) => `curl https://api.introdb.app/submit \\\n+  -X POST \\\n+  -H "Content-Type: application/json" \\\n+  -H "X-API-Key: $INTRODB_API_KEY" \\\n+  --data '${JSON.stringify(payload)}'`).join("\n\n");
+  return payloads.map((payload) => `curl https://api.introdb.app/submit \\\n  -X POST \\\n  -H "Content-Type: application/json" \\\n  -H "X-API-Key: $INTRODB_API_KEY" \\\n  --data '${JSON.stringify(payload)}'`).join("\n\n");
 }
 
 function inferredRepo() {
@@ -112,7 +218,59 @@ function toast(message) {
 }
 
 renderCards();
+renderBookmarks();
+updateDefaultUI();
 updateOutput();
+
+$("#search-shows").addEventListener("click", searchShows);
+$("#show-search").addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); searchShows(); } });
+$("#search-results").addEventListener("click", (event) => {
+  const result = event.target.closest("[data-result-index]");
+  if (result) selectShow(searchResults[Number(result.dataset.resultIndex)]);
+});
+$("#bookmark-list").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-bookmark-id]");
+  if (!button) return;
+  const show = library.bookmarks.find((item) => item.imdbId === button.dataset.bookmarkId);
+  if (show) selectShow(show);
+});
+$("#bookmark-show").addEventListener("click", () => {
+  if (!selectedShow) return;
+  const index = library.bookmarks.findIndex((show) => show.imdbId === selectedShow.imdbId);
+  if (index >= 0) { library.bookmarks.splice(index, 1); toast(`${selectedShow.name} removed from bookmarks`); }
+  else { library.bookmarks.push(selectedShow); library.bookmarks.sort((a, b) => a.name.localeCompare(b.name)); toast(`${selectedShow.name} bookmarked`); }
+  saveLibrary();
+  renderSelectedShow();
+  renderBookmarks();
+});
+
+$("#save-default").addEventListener("click", () => {
+  const meta = metadata();
+  if (!/^tt\d{7,8}$/.test(meta.imdb_id.trim())) return toast("Choose a show or enter its IMDb ID first");
+  if (!Number.isInteger(Number(meta.season)) || Number(meta.season) < 1) return toast("Enter a valid season first");
+  const seconds = Number($("#default-duration").value);
+  if (!Number.isFinite(seconds) || seconds <= 0 || seconds > 900) return toast("Enter a duration between 1 and 900 seconds");
+  const imdbId = meta.imdb_id.trim();
+  library.defaults[imdbId] ||= { show: null, seasons: {} };
+  if ($("#default-scope").value === "season") library.defaults[imdbId].seasons[String(meta.season)] = seconds;
+  else library.defaults[imdbId].show = seconds;
+  saveLibrary();
+  updateDefaultUI();
+  applyIntroDefault();
+  toast(`Saved ${seconds}s intro default`);
+});
+$("#remove-default").addEventListener("click", () => {
+  const meta = metadata();
+  const active = activeIntroDefault();
+  const rules = library.defaults[meta.imdb_id.trim()];
+  if (!active || !rules) return;
+  if (active.scope === "season") delete rules.seasons[String(meta.season)];
+  else rules.show = null;
+  if (!rules.show && Object.keys(rules.seasons || {}).length === 0) delete library.defaults[meta.imdb_id.trim()];
+  saveLibrary();
+  updateDefaultUI();
+  toast("Intro default removed");
+});
 
 $("#choose-file").addEventListener("click", () => fileInput.click());
 fileInput.addEventListener("change", () => loadFile(fileInput.files[0]));
@@ -145,7 +303,12 @@ $("#marker-grid").addEventListener("input", (event) => {
   segments[input.dataset.type][input.dataset.boundary] = input.value;
   updateOutput();
 });
-document.querySelectorAll("#imdb-id, #season, #episode, #tvdb-id, #tmdb-id").forEach((input) => input.addEventListener("input", updateOutput));
+$("#intro-start").addEventListener("change", () => applyIntroDefault(true));
+document.querySelectorAll("#imdb-id, #season, #episode, #tvdb-id, #tmdb-id").forEach((input) => input.addEventListener("input", () => {
+  if (input.id === "imdb-id" && selectedShow?.imdbId !== input.value.trim()) { selectedShow = null; renderSelectedShow(); }
+  if (input.id === "imdb-id" || input.id === "season") { updateDefaultUI(); renderBookmarks(); }
+  updateOutput();
+}));
 
 document.addEventListener("keydown", (event) => {
   if (["INPUT", "TEXTAREA"].includes(document.activeElement.tagName) || !video.src) return;

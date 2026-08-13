@@ -1,9 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildPayloads, formatTime, parseTime, validateMeta } from "../core.js";
+import { buildPayloads, calculateIntroEnd, formatTime, mapTvmazeShows, parseTime, resolveIntroDuration, validateMeta } from "../core.js";
 
 test("formats and parses timestamps", () => {
   assert.equal(formatTime(65.125), "00:01:05.125");
+  assert.equal(formatTime(59.9996), "00:01:00.000");
   assert.equal(parseTime("01:05.125"), 65.125);
   assert.equal(parseTime("1:02:03"), 3723);
   assert.equal(parseTime("not-a-time"), null);
@@ -20,4 +21,24 @@ test("builds only complete valid segment payloads", () => {
 test("validates episode identity", () => {
   assert.equal(validateMeta({ imdb_id: "tt0903747", season: 1, episode: 1 }), "");
   assert.match(validateMeta({ imdb_id: "0903747", season: 1, episode: 1 }), /IMDb/);
+});
+
+test("season intro duration overrides the show duration", () => {
+  const defaults = { tt0903747: { show: 45, seasons: { 4: 50 } } };
+  assert.deepEqual(resolveIntroDuration(defaults, "tt0903747", 4), { seconds: 50, scope: "season" });
+  assert.deepEqual(resolveIntroDuration(defaults, "tt0903747", 3), { seconds: 45, scope: "show" });
+  assert.equal(resolveIntroDuration(defaults, "tt0000001", 4), null);
+});
+
+test("calculates an intro end from its start and saved duration", () => {
+  assert.equal(calculateIntroEnd("00:00:30.000", 50), 80);
+  assert.equal(calculateIntroEnd("bad", 50), null);
+});
+
+test("translates TVmaze results to IMDb-backed choices", () => {
+  const results = mapTvmazeShows([
+    { show: { name: "Breaking Bad", premiered: "2008-01-20", externals: { imdb: "tt0903747", thetvdb: 81189 }, network: { name: "AMC" }, image: { medium: "poster.jpg" } } },
+    { show: { name: "No IMDb mapping", externals: { imdb: null } } },
+  ]);
+  assert.deepEqual(results, [{ name: "Breaking Bad", imdbId: "tt0903747", tvdbId: 81189, image: "poster.jpg", premiered: "2008-01-20", network: "AMC" }]);
 });

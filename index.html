@@ -120,14 +120,28 @@
           <div><h2 id="export-heading">Review &amp; hand off</h2><p id="payload-summary">Complete a segment to create an IntroDB payload.</p></div>
         </div>
         <div class="export-actions">
+          <button class="primary submit-button" id="submit-introdb" type="button" disabled>Submit to IntroDB</button>
           <button class="primary" id="copy-json" type="button" disabled>Copy JSON</button>
           <button class="secondary" id="copy-curl" type="button" disabled>Copy cURL</button>
           <button class="secondary" id="download-json" type="button" disabled>Download</button>
           <button class="secondary" id="create-issue" type="button" disabled>Create review issue ↗</button>
         </div>
+        <div class="api-key-panel">
+          <div class="api-key-copy">
+            <strong>Personal IntroDB API key</strong>
+            <span>Your key passes through the Cutmark relay to IntroDB. It is never stored by the relay.</span>
+          </div>
+          <div class="api-key-entry">
+            <input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="idb_…" aria-label="Personal IntroDB API key" />
+            <button id="toggle-key" type="button" aria-label="Show API key">Show</button>
+            <button id="clear-key" type="button">Clear</button>
+          </div>
+          <label class="remember-key"><input id="remember-key" type="checkbox" /> Remember this key on this device</label>
+          <span class="connection-status" id="connection-status">Enter your key to enable direct submission.</span>
+        </div>
         <div class="notice">
-          <strong>Why hand off?</strong>
-          <span>IntroDB currently permits browser API requests only from introdb.app. Cutmark prepares valid requests without putting an API key in a public GitHub Pages site.</span>
+          <strong>Private by design</strong>
+          <span>Media never leaves your device. Your API key is sent only when you submit, through Cutmark’s fixed IntroDB relay. Copy and download options remain available as a fallback.</span>
         </div>
         <pre id="payload-preview" aria-label="Generated IntroDB payload">No complete segments yet.</pre>
       </section>
@@ -139,6 +153,7 @@
     </footer>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="config.js"></script>
     <script type="module" src="app.js"></script>
   </body>
 </html>

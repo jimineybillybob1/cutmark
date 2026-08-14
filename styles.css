@@ -140,6 +140,19 @@ summary { cursor: pointer; font-weight: 750; font-size: 12px; }
 .export-section { border-top: 1px solid var(--line); display: grid; grid-template-columns: .7fr 1.3fr; gap: 24px 60px; }
 .export-section .panel-heading { margin: 0; }
 .export-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
+.submit-button { background: var(--orange); color: white; }
+.api-key-panel { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr minmax(300px, .9fr); gap: 10px 30px; align-items: center; border: 1px solid var(--line); border-radius: 14px; padding: 20px; background: rgba(255,255,255,.3); }
+.api-key-copy strong, .api-key-copy span { display: block; }
+.api-key-copy strong { font-size: 13px; }
+.api-key-copy span { color: var(--muted); font-size: 10px; line-height: 1.5; margin-top: 5px; max-width: 520px; }
+.api-key-entry { display: grid; grid-template-columns: 1fr auto auto; }
+.api-key-entry input { min-width: 0; border: 1px solid var(--line); border-radius: 9px 0 0 9px; padding: 11px 12px; font: 700 12px/1 ui-monospace, monospace; outline: none; }
+.api-key-entry button { border: 1px solid var(--ink); background: var(--ink); color: white; padding: 0 11px; font-size: 10px; font-weight: 800; }
+.api-key-entry button:last-child { border-radius: 0 9px 9px 0; border-left-color: #555; }
+.remember-key { grid-column: 2; color: var(--muted); font-size: 10px; display: flex; align-items: center; gap: 6px; }
+.connection-status { grid-column: 1 / -1; color: var(--muted); font: 700 10px/1.4 ui-monospace, monospace; }
+.connection-status.success { color: #27764e; }
+.connection-status.error { color: #b3472a; }
 .notice { grid-column: 1 / -1; border: 1px solid #c6b99b; background: #eee6cf; border-radius: 12px; padding: 15px 18px; display: flex; gap: 18px; font-size: 12px; line-height: 1.5; }
 .notice strong { white-space: nowrap; }
 pre { grid-column: 1 / -1; margin: 0; padding: 22px; border-radius: 14px; color: #d9ded8; background: var(--ink); min-height: 120px; max-height: 360px; overflow: auto; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; }
@@ -155,6 +168,8 @@ footer { border-top: 1px solid var(--line); padding: 28px clamp(20px, 4vw, 64px)
   .marker-card .description { min-height: 0; }
   .shortcut-hint { display: none; }
   .notice, pre { grid-column: 1; }
+  .api-key-panel { grid-column: 1; grid-template-columns: 1fr; }
+  .remember-key { grid-column: 1; }
 }
 @media (max-width: 580px) {
   main { width: min(100% - 24px, 1400px); }

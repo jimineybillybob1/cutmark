@@ -18,9 +18,11 @@ python -m http.server 8080
 
 Then open `http://localhost:8080`.
 
-## Why it does not submit directly
+## Direct submission
 
-As of August 2026, `api.introdb.app` permits browser API requests only from `https://introdb.app`. A GitHub Pages origin therefore cannot call the API directly. Cutmark deliberately does not embed or collect API keys; it prepares requests for a trusted terminal or review workflow instead.
+IntroDB permits browser API requests only from its own origin, so Cutmark uses a narrowly scoped Cloudflare Worker relay. Contributors supply their own IntroDB API key. The key is stored in session storage by default (or local storage only when explicitly requested), passes through the relay at submission time, and is never stored by the Worker.
+
+The Worker accepts requests only from Cutmark's GitHub Pages origin, validates the payload, and forwards only to IntroDB's `/submit` endpoint. Deploy it with `wrangler deploy --config worker/wrangler.toml`, then set its `/submit` URL in `config.js`.
 
 ## Deploy
 

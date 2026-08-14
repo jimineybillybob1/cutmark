@@ -16,6 +16,8 @@ let toastTimer;
 let searchResults = [];
 let selectedShow = null;
 const storageKey = "cutmark-library-v1";
+const apiKeyStorageKey = "cutmark-introdb-api-key";
+const proxyUrl = window.CUTMARK_CONFIG?.proxyUrl || "";
 const library = loadLibrary();
 
 function loadLibrary() {
@@ -164,8 +166,76 @@ function updateOutput() {
   const payloads = buildPayloads(meta, segments);
   const enabled = payloads.length > 0 && !metaError;
   ["#copy-json", "#copy-curl", "#download-json", "#create-issue"].forEach((id) => { $(id).disabled = !enabled; });
+  $("#submit-introdb").disabled = !enabled || !validApiKey($("#api-key").value) || !proxyUrl;
   $("#payload-preview").textContent = payloads.length ? JSON.stringify(payloads.length === 1 ? payloads[0] : payloads, null, 2) : "No complete segments yet.";
   $("#payload-summary").textContent = metaError && payloads.length ? metaError : payloads.length ? `${payloads.length} valid ${payloads.length === 1 ? "segment" : "segments"} ready for IntroDB.` : "Complete a segment to create an IntroDB payload.";
+}
+
+function validApiKey(value) {
+  return /^idb_[A-Za-z0-9_-]{8,}$/.test(String(value || "").trim());
+}
+
+function setConnectionStatus(message, state = "") {
+  const status = $("#connection-status");
+  status.textContent = message;
+  status.className = `connection-status${state ? ` ${state}` : ""}`;
+}
+
+function loadApiKey() {
+  const remembered = localStorage.getItem(apiKeyStorageKey) || "";
+  const session = sessionStorage.getItem(apiKeyStorageKey) || "";
+  $("#api-key").value = remembered || session;
+  $("#remember-key").checked = Boolean(remembered);
+  if (!proxyUrl) setConnectionStatus("The submission relay has not been deployed yet.", "error");
+  else if (validApiKey($("#api-key").value)) setConnectionStatus("Key ready. It will be sent only when you submit.", "success");
+}
+
+function persistApiKey() {
+  const key = $("#api-key").value.trim();
+  if (!key) {
+    localStorage.removeItem(apiKeyStorageKey);
+    sessionStorage.removeItem(apiKeyStorageKey);
+  } else if ($("#remember-key").checked) {
+    localStorage.setItem(apiKeyStorageKey, key);
+    sessionStorage.removeItem(apiKeyStorageKey);
+  } else {
+    sessionStorage.setItem(apiKeyStorageKey, key);
+    localStorage.removeItem(apiKeyStorageKey);
+  }
+  if (key && !validApiKey(key)) setConnectionStatus("That key does not look like an IntroDB key (idb_…).", "error");
+  else if (key) setConnectionStatus("Key ready. It will be sent only when you submit.", "success");
+  else setConnectionStatus("Enter your key to enable direct submission.");
+  updateOutput();
+}
+
+async function submitToIntroDB() {
+  const payloads = payloadsOrWarn();
+  if (!payloads) return;
+  const key = $("#api-key").value.trim();
+  if (!validApiKey(key)) return toast("Enter a valid IntroDB API key first");
+  const button = $("#submit-introdb");
+  const originalLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = "Submitting…";
+  setConnectionStatus("Sending timestamps to IntroDB…");
+  try {
+    const response = await fetch(proxyUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-IntroDB-Key": key },
+      body: JSON.stringify({ submissions: payloads }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.ok) throw new Error(result.error || "IntroDB rejected the submission.");
+    const accepted = result.results?.filter((item) => item.ok).length || payloads.length;
+    setConnectionStatus(`${accepted} ${accepted === 1 ? "segment" : "segments"} submitted successfully.`, "success");
+    toast("Submitted to IntroDB");
+  } catch (error) {
+    setConnectionStatus(error.message || "Submission failed. Try the cURL fallback.", "error");
+    toast("Submission failed");
+  } finally {
+    button.textContent = originalLabel;
+    updateOutput();
+  }
 }
 
 function loadFile(file) {
@@ -220,7 +290,20 @@ function toast(message) {
 renderCards();
 renderBookmarks();
 updateDefaultUI();
+loadApiKey();
 updateOutput();
+
+$("#api-key").addEventListener("input", persistApiKey);
+$("#remember-key").addEventListener("change", persistApiKey);
+$("#toggle-key").addEventListener("click", () => {
+  const input = $("#api-key");
+  const showing = input.type === "text";
+  input.type = showing ? "password" : "text";
+  $("#toggle-key").textContent = showing ? "Show" : "Hide";
+  $("#toggle-key").setAttribute("aria-label", showing ? "Show API key" : "Hide API key");
+});
+$("#clear-key").addEventListener("click", () => { $("#api-key").value = ""; persistApiKey(); });
+$("#submit-introdb").addEventListener("click", submitToIntroDB);
 
 $("#search-shows").addEventListener("click", searchShows);
 $("#show-search").addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); searchShows(); } });

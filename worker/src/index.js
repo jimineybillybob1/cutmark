@@ -9,7 +9,7 @@ const UPSTREAM = "https://api.introdb.app/submit";
 function corsHeaders(origin) {
   return {
     "Access-Control-Allow-Origin": ALLOWED_ORIGINS.has(origin) ? origin : "",
-    "Access-Control-Allow-Methods": "POST,OPTIONS",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type,X-IntroDB-Key",
     "Access-Control-Max-Age": "86400",
     "Vary": "Origin",
@@ -37,12 +37,62 @@ export function validateSubmission(value) {
   return "";
 }
 
+export function summarizeSegments(value, episode) {
+  return {
+    episode,
+    available: true,
+    intro: Boolean(value?.intro),
+    recap: Boolean(value?.recap),
+    outro: Boolean(value?.outro),
+  };
+}
+
+async function fetchCoverage(imdbId, season, episodes) {
+  const results = [];
+  for (let offset = 0; offset < episodes.length; offset += 5) {
+    const batch = episodes.slice(offset, offset + 5);
+    const batchResults = await Promise.all(batch.map(async (episode) => {
+      const url = new URL("https://api.introdb.app/segments");
+      url.searchParams.set("imdb_id", imdbId);
+      url.searchParams.set("season", String(season));
+      url.searchParams.set("episode", String(episode));
+      try {
+        const response = await fetch(url);
+        if (response.status === 404) return summarizeSegments(null, episode);
+        if (!response.ok) return { episode, available: false, intro: false, recap: false, outro: false };
+        return summarizeSegments(await response.json(), episode);
+      } catch {
+        return { episode, available: false, intro: false, recap: false, outro: false };
+      }
+    }));
+    results.push(...batchResults);
+  }
+  return results.sort((a, b) => a.episode - b.episode);
+}
+
 export default {
-  async fetch(request) {
+  async fetch(request, _env, ctx) {
     const origin = request.headers.get("Origin") || "";
     if (!ALLOWED_ORIGINS.has(origin)) return json({ ok: false, error: "Origin not allowed." }, 403, origin);
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(origin) });
     const url = new URL(request.url);
+
+    if (request.method === "GET" && url.pathname === "/coverage") {
+      const imdbId = url.searchParams.get("imdb_id") || "";
+      const season = Number(url.searchParams.get("season"));
+      const episodes = [...new Set((url.searchParams.get("episodes") || "").split(",").map(Number))].filter((value) => Number.isInteger(value) && value > 0).sort((a, b) => a - b);
+      if (!/^tt\d{7,8}$/.test(imdbId) || !Number.isInteger(season) || season < 1 || episodes.length < 1 || episodes.length > 30) {
+        return json({ ok: false, error: "Invalid coverage request." }, 400, origin);
+      }
+      const cacheKey = new Request(`https://cutmark-cache.invalid/coverage?imdb_id=${imdbId}&season=${season}&episodes=${episodes.join(",")}`);
+      const cache = globalThis.caches?.default;
+      const cached = cache && url.searchParams.get("refresh") !== "1" ? await cache.match(cacheKey) : null;
+      if (cached) return json(await cached.json(), 200, origin);
+      const data = { ok: true, imdb_id: imdbId, season, episodes: await fetchCoverage(imdbId, season, episodes) };
+      if (cache && ctx) ctx.waitUntil(cache.put(cacheKey, new Response(JSON.stringify(data), { headers: { "Cache-Control": "public, max-age=300", "Content-Type": "application/json" } })));
+      return json(data, 200, origin);
+    }
+
     if (request.method !== "POST" || url.pathname !== "/submit") return json({ ok: false, error: "Not found." }, 404, origin);
 
     const apiKey = request.headers.get("X-IntroDB-Key") || "";

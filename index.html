@@ -108,6 +108,14 @@
             <span class="guide-dot" aria-hidden="true"></span>
             <span id="episode-guide-status">Select a show from title search to verify its episodes.</span>
           </div>
+          <div class="coverage-panel" id="coverage-panel" hidden>
+            <div class="coverage-heading">
+              <div><strong id="coverage-title">IntroDB coverage</strong><span>Click an episode to select it</span></div>
+              <button id="refresh-coverage" type="button">Refresh</button>
+            </div>
+            <div class="coverage-legend" aria-hidden="true"><span><i class="intro"></i>Intro</span><span><i class="recap"></i>Recap</span><span><i class="outro"></i>Outro</span></div>
+            <div class="coverage-grid" id="coverage-grid" aria-label="IntroDB timestamp coverage by episode"></div>
+          </div>
           <details>
             <summary>Optional matching IDs</summary>
             <div class="field-row optional-fields">
@@ -166,7 +174,7 @@
         </div>
         <div class="notice">
           <strong>Private by design</strong>
-          <span>Media never leaves your device. Your API key is sent only when you submit, through Cutmark’s fixed IntroDB relay. Copy and download options remain available as a fallback.</span>
+          <span>Media never leaves your device. Your API key is sent only when you submit, through Cutmark’s fixed IntroDB relay. Public coverage checks do not use your key.</span>
         </div>
         <pre id="payload-preview" aria-label="Generated IntroDB payload">No complete segments yet.</pre>
       </section>

@@ -10,6 +10,8 @@ There are two interchangeable timestamping workflows: search for a show and ente
 
 Direct submission requires an episode verified against TVmaze's regular-episode guide. After a successful submission, Cutmark clears the timestamps and advances to the next confirmed episode, including crossing into the next known season. At the final known episode it clears the completed timestamps without inventing another episode number.
 
+For the selected season, Cutmark fetches a cached coverage summary through the Worker and shows at a glance which episodes currently have intro, recap, and outro data in IntroDB. Coverage reads are public and do not send the contributor's API key.
+
 Bookmarks and duration rules are saved in that browser's local storage. They survive reloads but do not sync between browsers or devices.
 
 ## Run locally

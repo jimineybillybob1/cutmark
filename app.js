@@ -17,6 +17,8 @@ let searchResults = [];
 let selectedShow = null;
 let episodeGuide = { status: "idle", imdbId: "", tvmazeId: null, seasons: {} };
 let episodeGuideRequest = 0;
+let coverage = { status: "idle", imdbId: "", season: null, episodes: [] };
+let coverageRequest = 0;
 let workflowMode = loadWorkflowMode();
 const storageKey = "cutmark-library-v1";
 const apiKeyStorageKey = "cutmark-introdb-api-key";
@@ -139,6 +141,64 @@ function renderEpisodeGuide() {
   setEpisodeGuideStatus("ready", `S${season}E${episode} verified · ${episodes.length} episodes in season${next ? ` · next S${next.season}E${next.episode}` : " · final known episode"}`);
 }
 
+function renderCoverage() {
+  const panel = $("#coverage-panel");
+  if (coverage.status === "idle") { panel.hidden = true; return; }
+  panel.hidden = false;
+  $("#coverage-title").textContent = `Season ${coverage.season} · IntroDB coverage`;
+  const grid = $("#coverage-grid");
+  if (coverage.status === "loading") {
+    grid.innerHTML = '<p class="coverage-message">Checking IntroDB…</p>';
+    return;
+  }
+  if (coverage.status === "error") {
+    grid.innerHTML = '<p class="coverage-message">Coverage is unavailable right now. Timestamp entry and submission still work.</p>';
+    return;
+  }
+  grid.innerHTML = coverage.episodes.map((item) => {
+    const current = Number(metadata().season) === coverage.season && Number(metadata().episode) === item.episode;
+    const complete = item.intro && item.recap && item.outro;
+    const label = `Episode ${item.episode}: intro ${item.intro ? "available" : "missing"}, recap ${item.recap ? "available" : "missing"}, outro ${item.outro ? "available" : "missing"}`;
+    return `<button type="button" class="coverage-episode${current ? " current" : ""}${complete ? " complete" : ""}${item.available ? "" : " unavailable"}" data-coverage-episode="${item.episode}" aria-label="${label}">
+      <span class="coverage-number">E${item.episode}</span>
+      <span class="coverage-segments" aria-hidden="true"><i class="intro${item.intro ? " on" : ""}"></i><i class="recap${item.recap ? " on" : ""}"></i><i class="outro${item.outro ? " on" : ""}"></i></span>
+    </button>`;
+  }).join("");
+}
+
+async function loadSeasonCoverage(force = false) {
+  if (episodeGuide.status !== "ready" || episodeGuide.imdbId !== metadata().imdb_id.trim() || !proxyUrl) {
+    coverage = { status: "idle", imdbId: "", season: null, episodes: [] };
+    renderCoverage();
+    return;
+  }
+  const season = Number(metadata().season);
+  const episodes = episodeGuide.seasons[String(season)];
+  if (!episodes) return;
+  const requestId = ++coverageRequest;
+  coverage = { status: "loading", imdbId: episodeGuide.imdbId, season, episodes: [] };
+  renderCoverage();
+  try {
+    const url = new URL(proxyUrl);
+    url.pathname = "/coverage";
+    url.search = "";
+    url.searchParams.set("imdb_id", episodeGuide.imdbId);
+    url.searchParams.set("season", String(season));
+    url.searchParams.set("episodes", episodes.join(","));
+    if (force) url.searchParams.set("refresh", "1");
+    const response = await fetch(url);
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.ok) throw new Error("Coverage failed");
+    if (requestId !== coverageRequest || Number(metadata().season) !== season) return;
+    coverage = { status: "ready", imdbId: episodeGuide.imdbId, season, episodes: result.episodes };
+    renderCoverage();
+  } catch {
+    if (requestId !== coverageRequest) return;
+    coverage = { status: "error", imdbId: episodeGuide.imdbId, season, episodes: [] };
+    renderCoverage();
+  }
+}
+
 async function loadEpisodeGuide(show) {
   const requestId = ++episodeGuideRequest;
   const imdbId = show?.imdbId || metadata().imdb_id.trim();
@@ -172,10 +232,13 @@ async function loadEpisodeGuide(show) {
     renderEpisodeGuide();
     updateDefaultUI();
     updateOutput();
+    loadSeasonCoverage();
   } catch {
     if (requestId !== episodeGuideRequest) return;
     episodeGuide = { status: "unavailable", imdbId, tvmazeId: null, seasons: {} };
+    coverage = { status: "idle", imdbId: "", season: null, episodes: [] };
     renderEpisodeGuide();
+    renderCoverage();
     updateOutput();
   }
 }
@@ -381,6 +444,7 @@ function prepareAfterSubmission(next) {
   updateDefaultUI();
   renderEpisodeGuide();
   updateOutput();
+  loadSeasonCoverage(true);
 }
 
 function loadFile(file) {
@@ -456,6 +520,7 @@ renderCards();
 setWorkflowMode(workflowMode);
 renderBookmarks();
 renderEpisodeGuide();
+renderCoverage();
 updateDefaultUI();
 loadApiKey();
 updateOutput();
@@ -479,6 +544,21 @@ $("#show-search").addEventListener("keydown", (event) => { if (event.key === "En
 $("#search-results").addEventListener("click", (event) => {
   const result = event.target.closest("[data-result-index]");
   if (result) selectShow(searchResults[Number(result.dataset.resultIndex)]);
+});
+$("#refresh-coverage").addEventListener("click", () => loadSeasonCoverage(true));
+$("#coverage-grid").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-coverage-episode]");
+  if (!button) return;
+  const episode = Number(button.dataset.coverageEpisode);
+  if (episode === Number(metadata().episode) && coverage.season === Number(metadata().season)) return;
+  clearAllSegments();
+  if (workflowMode === "video" && objectUrl) unloadVideo();
+  $("#season").value = coverage.season;
+  $("#episode").value = episode;
+  renderEpisodeGuide();
+  renderCoverage();
+  updateOutput();
+  toast(`Selected S${coverage.season}E${episode}`);
 });
 $("#bookmark-list").addEventListener("click", (event) => {
   const button = event.target.closest("[data-bookmark-id]");
@@ -561,10 +641,13 @@ document.querySelectorAll("#imdb-id, #season, #episode, #tvdb-id, #tmdb-id").for
     selectedShow = null;
     episodeGuideRequest += 1;
     episodeGuide = { status: "idle", imdbId: input.value.trim(), tvmazeId: null, seasons: {} };
+    coverageRequest += 1;
+    coverage = { status: "idle", imdbId: "", season: null, episodes: [] };
     renderSelectedShow();
+    renderCoverage();
   }
   if (input.id === "imdb-id" || input.id === "season") { updateDefaultUI(); renderBookmarks(); }
-  if (input.id === "imdb-id" || input.id === "season" || input.id === "episode") renderEpisodeGuide();
+  if (input.id === "imdb-id" || input.id === "season" || input.id === "episode") { renderEpisodeGuide(); renderCoverage(); }
   updateOutput();
 }));
 $("#imdb-id").addEventListener("change", resolveManualEpisodeGuide);
@@ -575,6 +658,7 @@ $("#season").addEventListener("change", () => {
   updateDefaultUI();
   renderEpisodeGuide();
   updateOutput();
+  loadSeasonCoverage();
 });
 
 document.addEventListener("keydown", (event) => {

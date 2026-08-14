@@ -126,6 +126,28 @@ h2 { margin: 0; font-size: 29px; letter-spacing: -.045em; line-height: 1; }
 .episode-guide[data-state="valid"] .guide-dot { background: #36a269; box-shadow: 0 0 0 3px rgba(54,162,105,.14); }
 .episode-guide[data-state="error"] { color: #9c3f29; border-color: rgba(156,63,41,.35); }
 .episode-guide[data-state="error"] .guide-dot { background: var(--orange); }
+.coverage-panel { margin-top: 11px; border: 1px solid #bdb7aa; border-radius: 10px; padding: 12px; background: rgba(255,255,255,.18); }
+.coverage-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.coverage-heading strong, .coverage-heading span { display: block; }
+.coverage-heading strong { font-size: 11px; }
+.coverage-heading span { color: var(--muted); font-size: 9px; margin-top: 2px; }
+.coverage-heading button { border: 0; background: transparent; color: var(--muted); padding: 3px; font-size: 9px; text-decoration: underline; }
+.coverage-legend { display: flex; gap: 12px; margin: 10px 0 8px; color: var(--muted); font-size: 8px; text-transform: uppercase; letter-spacing: .06em; }
+.coverage-legend span { display: flex; align-items: center; gap: 4px; }
+.coverage-legend i, .coverage-segments i { width: 6px; height: 6px; border-radius: 50%; background: #c2bcae; }
+.coverage-legend .intro, .coverage-segments .intro.on { background: #95b80f; }
+.coverage-legend .recap, .coverage-segments .recap.on { background: #5d8de2; }
+.coverage-legend .outro, .coverage-segments .outro.on { background: var(--orange); }
+.coverage-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: 5px; }
+.coverage-episode { border: 1px solid #bdb7aa; border-radius: 7px; background: rgba(255,255,255,.38); min-height: 44px; padding: 6px 4px; display: grid; place-items: center; gap: 5px; color: var(--ink); }
+.coverage-episode:hover { border-color: var(--ink); }
+.coverage-episode.current { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); background: white; }
+.coverage-episode.complete { background: rgba(215,255,69,.18); }
+.coverage-episode.unavailable { opacity: .45; }
+.coverage-number { font: 800 9px/1 ui-monospace, monospace; }
+.coverage-segments { display: flex; gap: 3px; }
+.coverage-segments i { display: block; width: 5px; height: 5px; }
+.coverage-message { grid-column: 1 / -1; margin: 3px 0; color: var(--muted); font-size: 9px; }
 details { margin-top: 26px; border-top: 1px solid #bdb7aa; padding-top: 18px; }
 summary { cursor: pointer; font-weight: 750; font-size: 12px; }
 .optional-fields { margin-top: 18px; }

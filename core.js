@@ -123,3 +123,10 @@ export function getNextEpisode(guide, season, episode) {
   }
   return null;
 }
+
+export function chunkValues(values, size = 30) {
+  if (!Array.isArray(values) || !Number.isInteger(size) || size < 1) return [];
+  const chunks = [];
+  for (let index = 0; index < values.length; index += size) chunks.push(values.slice(index, index + size));
+  return chunks;
+}

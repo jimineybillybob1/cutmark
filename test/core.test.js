@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildEpisodeGuide, buildPayloads, calculateIntroEnd, formatTime, getNextEpisode, mapTvmazeShows, parseTime, resolveIntroDuration, validateEpisodeInGuide, validateMeta } from "../core.js";
+import { buildEpisodeGuide, buildPayloads, calculateIntroEnd, chunkValues, formatTime, getNextEpisode, mapTvmazeShows, parseTime, resolveIntroDuration, validateEpisodeInGuide, validateMeta } from "../core.js";
 
 test("formats and parses timestamps", () => {
   assert.equal(formatTime(65.125), "00:01:05.125");
@@ -62,4 +62,10 @@ test("advances within a season and then to the next known season", () => {
   assert.deepEqual(getNextEpisode(guide, 1, 2), { season: 3, episode: 1 });
   assert.equal(getNextEpisode(guide, 3, 2), null);
   assert.equal(getNextEpisode(guide, 2, 1), null);
+});
+
+test("splits long seasons into relay-safe coverage batches", () => {
+  const chunks = chunkValues(Array.from({ length: 61 }, (_, index) => index + 1));
+  assert.deepEqual(chunks.map((chunk) => chunk.length), [30, 30, 1]);
+  assert.equal(chunks[2][0], 61);
 });

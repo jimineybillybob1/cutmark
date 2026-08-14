@@ -1,4 +1,4 @@
-import { buildEpisodeGuide, buildPayloads, calculateIntroEnd, formatTime, getNextEpisode, mapTvmazeShows, parseTime, resolveIntroDuration, validateEpisodeInGuide, validateMeta } from "./core.js";
+import { buildEpisodeGuide, buildPayloads, calculateIntroEnd, chunkValues, formatTime, getNextEpisode, mapTvmazeShows, parseTime, resolveIntroDuration, validateEpisodeInGuide, validateMeta } from "./core.js";
 
 const types = [
   { id: "recap", accent: "#76a7ff", description: "Previously-on material before the episode begins." },
@@ -152,7 +152,11 @@ function renderCoverage() {
     return;
   }
   if (coverage.status === "error") {
-    grid.innerHTML = '<p class="coverage-message">Coverage is unavailable right now. Timestamp entry and submission still work.</p>';
+    grid.innerHTML = "";
+    const message = document.createElement("p");
+    message.className = "coverage-message";
+    message.textContent = `${coverage.error || "Coverage is unavailable right now."} Timestamp entry and submission still work.`;
+    grid.append(message);
     return;
   }
   grid.innerHTML = coverage.episodes.map((item) => {
@@ -179,22 +183,31 @@ async function loadSeasonCoverage(force = false) {
   coverage = { status: "loading", imdbId: episodeGuide.imdbId, season, episodes: [] };
   renderCoverage();
   try {
-    const url = new URL(proxyUrl);
-    url.pathname = "/coverage";
-    url.search = "";
-    url.searchParams.set("imdb_id", episodeGuide.imdbId);
-    url.searchParams.set("season", String(season));
-    url.searchParams.set("episodes", episodes.join(","));
-    if (force) url.searchParams.set("refresh", "1");
-    const response = await fetch(url);
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok || !result.ok) throw new Error("Coverage failed");
+    const combined = [];
+    const batches = chunkValues(episodes);
+    for (let index = 0; index < batches.length; index += 1) {
+      if (requestId !== coverageRequest) return;
+      if (batches.length > 1) {
+        $("#coverage-grid").innerHTML = `<p class="coverage-message">Checking IntroDB… batch ${index + 1} of ${batches.length}</p>`;
+      }
+      const url = new URL(proxyUrl);
+      url.pathname = "/coverage";
+      url.search = "";
+      url.searchParams.set("imdb_id", episodeGuide.imdbId);
+      url.searchParams.set("season", String(season));
+      url.searchParams.set("episodes", batches[index].join(","));
+      if (force) url.searchParams.set("refresh", "1");
+      const response = await fetch(url);
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok) throw new Error(result.error || `Coverage batch ${index + 1} failed.`);
+      combined.push(...result.episodes);
+    }
     if (requestId !== coverageRequest || Number(metadata().season) !== season) return;
-    coverage = { status: "ready", imdbId: episodeGuide.imdbId, season, episodes: result.episodes };
+    coverage = { status: "ready", imdbId: episodeGuide.imdbId, season, episodes: combined.sort((a, b) => a.episode - b.episode) };
     renderCoverage();
-  } catch {
+  } catch (error) {
     if (requestId !== coverageRequest) return;
-    coverage = { status: "error", imdbId: episodeGuide.imdbId, season, episodes: [] };
+    coverage = { status: "error", error: error.message, imdbId: episodeGuide.imdbId, season, episodes: [] };
     renderCoverage();
   }
 }

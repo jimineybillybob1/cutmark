@@ -25,6 +25,17 @@ const apiKeyStorageKey = "cutmark-introdb-api-key";
 const proxyUrl = window.CUTMARK_CONFIG?.proxyUrl || "";
 const library = loadLibrary();
 
+function applyTheme(theme, persist = true) {
+  const next = theme === "dark" ? "dark" : "light";
+  document.documentElement.dataset.theme = next;
+  $("#theme-toggle").setAttribute("aria-pressed", String(next === "dark"));
+  $("#theme-label").textContent = next === "dark" ? "Light mode" : "Dark mode";
+  document.querySelector('meta[name="theme-color"]').content = next === "dark" ? "#111411" : "#171a18";
+  if (persist) {
+    try { localStorage.setItem("cutmark-theme", next); } catch { /* Theme still applies for this visit. */ }
+  }
+}
+
 function loadWorkflowMode() {
   try { return localStorage.getItem("cutmark-workflow") === "video" ? "video" : "manual"; }
   catch { return "manual"; }
@@ -530,6 +541,7 @@ function toast(message) {
 }
 
 renderCards();
+applyTheme(document.documentElement.dataset.theme, false);
 setWorkflowMode(workflowMode);
 renderBookmarks();
 renderEpisodeGuide();
@@ -539,6 +551,7 @@ loadApiKey();
 updateOutput();
 
 $("#api-key").addEventListener("input", persistApiKey);
+$("#theme-toggle").addEventListener("click", () => applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"));
 $("#remember-key").addEventListener("change", persistApiKey);
 $("#toggle-key").addEventListener("click", () => {
   const input = $("#api-key");

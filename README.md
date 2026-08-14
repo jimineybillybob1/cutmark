@@ -14,6 +14,8 @@ For the selected season, Cutmark fetches a cached coverage summary through the W
 
 Bookmarks and duration rules are saved in that browser's local storage. They survive reloads but do not sync between browsers or devices.
 
+Cutmark includes light and dark themes. On the first visit it follows the device theme; an explicit choice is stored only on that device.
+
 ## Run locally
 
 Any static file server works. For example:

@@ -6,6 +6,15 @@
     <meta name="description" content="Mark accurate intro, recap, and outro timestamps for IntroDB." />
     <meta name="theme-color" content="#171a18" />
     <title>Cutmark — IntroDB timestamp tool</title>
+    <script>
+      (() => {
+        try {
+          const saved = localStorage.getItem("cutmark-theme");
+          const theme = saved === "light" || saved === "dark" ? saved : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          document.documentElement.dataset.theme = theme;
+        } catch { document.documentElement.dataset.theme = "light"; }
+      })();
+    </script>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -16,6 +25,7 @@
       </a>
       <div class="header-actions">
         <span class="local-badge"><span></span> Local-only media</span>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-pressed="false"><span aria-hidden="true">◐</span><span id="theme-label">Dark mode</span></button>
         <a href="https://introdb.app/docs/api" target="_blank" rel="noreferrer">API docs ↗</a>
       </div>
     </header>

@@ -24,11 +24,18 @@ const storageKey = "cutmark-library-v1";
 const apiKeyStorageKey = "cutmark-introdb-api-key";
 const proxyUrl = window.CUTMARK_CONFIG?.proxyUrl || "";
 const library = loadLibrary();
+const supabaseUrl = window.CUTMARK_CONFIG?.supabaseUrl || "";
+const supabasePublishableKey = window.CUTMARK_CONFIG?.supabasePublishableKey || "";
+let cloudClient = null;
+let cloudSession = null;
+let cloudReady = false;
+let cloudSaveTimer;
 
 function applyTheme(theme, persist = true) {
   const next = theme === "dark" ? "dark" : "light";
   document.documentElement.dataset.theme = next;
   $("#theme-toggle").setAttribute("aria-pressed", String(next === "dark"));
+  $("#theme-toggle").setAttribute("aria-label", next === "dark" ? "Switch to light mode" : "Switch to dark mode");
   $("#theme-label").textContent = next === "dark" ? "Light mode" : "Dark mode";
   document.querySelector('meta[name="theme-color"]').content = next === "dark" ? "#111411" : "#171a18";
   if (persist) {
@@ -44,15 +51,128 @@ function loadWorkflowMode() {
 function loadLibrary() {
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey) || "{}");
-    return { bookmarks: Array.isArray(saved.bookmarks) ? saved.bookmarks : [], defaults: saved.defaults && typeof saved.defaults === "object" ? saved.defaults : {} };
+    return {
+      bookmarks: Array.isArray(saved.bookmarks) ? saved.bookmarks : [],
+      defaults: saved.defaults && typeof saved.defaults === "object" ? saved.defaults : {},
+      progress: saved.progress && typeof saved.progress === "object" ? saved.progress : null,
+    };
   } catch {
-    return { bookmarks: [], defaults: {} };
+    return { bookmarks: [], defaults: {}, progress: null };
   }
 }
 
-function saveLibrary() {
+function saveLibrary(scheduleCloud = true) {
   try { localStorage.setItem(storageKey, JSON.stringify(library)); }
   catch { toast("This browser could not save local preferences"); }
+  if (scheduleCloud && cloudReady && cloudSession) {
+    clearTimeout(cloudSaveTimer);
+    cloudSaveTimer = setTimeout(pushCloudState, 500);
+  }
+}
+
+function setCloudStatus(message, state = "") {
+  const element = $("#cloud-status");
+  element.textContent = message;
+  element.dataset.state = state;
+}
+
+function renderAccount() {
+  const signedIn = Boolean(cloudSession?.user);
+  $("#account-signed-out").hidden = signedIn;
+  $("#account-signed-in").hidden = !signedIn;
+  $("#account-user-email").textContent = cloudSession?.user?.email || "";
+  $("#account-label").textContent = signedIn ? "Synced" : "Cloud sync";
+  $("#account-toggle").classList.toggle("signed-in", signedIn);
+}
+
+function mergeDefaults(localDefaults, remoteDefaults) {
+  const merged = structuredClone(localDefaults || {});
+  for (const [imdbId, rules] of Object.entries(remoteDefaults || {})) {
+    merged[imdbId] ||= { show: null, seasons: {} };
+    if (rules?.show != null) merged[imdbId].show = rules.show;
+    merged[imdbId].seasons = { ...(merged[imdbId].seasons || {}), ...(rules?.seasons || {}) };
+  }
+  return merged;
+}
+
+function mergeCloudState(remote = {}) {
+  const byId = new Map(library.bookmarks.map((show) => [show.imdbId, show]));
+  for (const show of remote.bookmarks || []) if (show?.imdbId) byId.set(show.imdbId, show);
+  library.bookmarks = [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+  library.defaults = mergeDefaults(library.defaults, remote.defaults);
+  if (remote.progress?.show?.imdbId) library.progress = remote.progress;
+  saveLibrary(false);
+  renderBookmarks();
+  renderSelectedShow();
+  updateDefaultUI();
+}
+
+function cloudPayload() {
+  return {
+    user_id: cloudSession.user.id,
+    bookmarks: library.bookmarks,
+    defaults: library.defaults,
+    progress: library.progress || {},
+    updated_at: new Date().toISOString(),
+  };
+}
+
+async function pushCloudState() {
+  if (!cloudClient || !cloudSession) return;
+  setCloudStatus("Saving changes…", "syncing");
+  const { error } = await cloudClient.from("cutmark_user_state").upsert(cloudPayload(), { onConflict: "user_id" });
+  if (error) return setCloudStatus(`Sync failed: ${error.message}`, "error");
+  setCloudStatus("All changes synced.", "success");
+}
+
+async function syncCloudState({ restoreProgress = false } = {}) {
+  if (!cloudClient || !cloudSession) return;
+  setCloudStatus("Syncing your library…", "syncing");
+  const { data, error } = await cloudClient.from("cutmark_user_state").select("bookmarks, defaults, progress").eq("user_id", cloudSession.user.id).maybeSingle();
+  if (error) return setCloudStatus(`Sync failed: ${error.message}`, "error");
+  if (data) mergeCloudState(data);
+  await pushCloudState();
+  cloudReady = true;
+  if (restoreProgress && library.progress?.show?.imdbId && !selectedShow) {
+    $("#season").value = library.progress.season || 1;
+    $("#episode").value = library.progress.episode || 1;
+    selectShow(library.progress.show, false);
+  }
+}
+
+function saveProgress() {
+  if (!selectedShow) return;
+  library.progress = {
+    show: selectedShow,
+    season: Math.max(1, Number($("#season").value) || 1),
+    episode: Math.max(1, Number($("#episode").value) || 1),
+  };
+  saveLibrary();
+}
+
+async function initializeCloud() {
+  if (!supabaseUrl || !supabasePublishableKey) {
+    setCloudStatus("Cloud sync is being connected. Local use still works normally.");
+    renderAccount();
+    return;
+  }
+  if (!window.supabase?.createClient) {
+    setCloudStatus("Cloud sync could not load. Check your connection and try again.", "error");
+    return;
+  }
+  cloudClient = window.supabase.createClient(supabaseUrl, supabasePublishableKey);
+  const { data } = await cloudClient.auth.getSession();
+  cloudSession = data.session;
+  renderAccount();
+  if (cloudSession) await syncCloudState({ restoreProgress: true });
+  else setCloudStatus("Sign in to sync this device.");
+  cloudClient.auth.onAuthStateChange((event, session) => {
+    cloudSession = session;
+    cloudReady = false;
+    renderAccount();
+    if (event === "SIGNED_IN" && session) setTimeout(() => syncCloudState({ restoreProgress: true }), 0);
+    if (event === "SIGNED_OUT") setCloudStatus("Signed out. Your local library remains on this device.");
+  });
 }
 
 function escapeHtml(value) {
@@ -109,7 +229,7 @@ function renderSelectedShow() {
   $("#bookmark-show").setAttribute("aria-label", saved ? `Remove ${selectedShow.name} bookmark` : `Bookmark ${selectedShow.name}`);
 }
 
-function selectShow(show) {
+function selectShow(show, persist = true) {
   selectedShow = show;
   $("#imdb-id").value = show.imdbId;
   $("#tvdb-id").value = show.tvdbId || "";
@@ -120,6 +240,7 @@ function selectShow(show) {
   updateDefaultUI();
   loadEpisodeGuide(show);
   updateOutput();
+  if (persist) saveProgress();
 }
 
 function setEpisodeGuideStatus(status, message) {
@@ -469,6 +590,7 @@ function prepareAfterSubmission(next) {
   renderEpisodeGuide();
   updateOutput();
   loadSeasonCoverage(true);
+  saveProgress();
 }
 
 function loadFile(file) {
@@ -549,8 +671,25 @@ renderCoverage();
 updateDefaultUI();
 loadApiKey();
 updateOutput();
+initializeCloud();
 
 $("#api-key").addEventListener("input", persistApiKey);
+$("#account-toggle").addEventListener("click", () => $("#account-dialog").showModal());
+$("#send-magic-link").addEventListener("click", async () => {
+  if (!cloudClient) return toast("Cloud sync is not connected yet");
+  const email = $("#account-email").value.trim();
+  if (!/^\S+@\S+\.\S+$/.test(email)) return toast("Enter a valid email address");
+  const button = $("#send-magic-link");
+  button.disabled = true;
+  setCloudStatus("Sending your sign-in link…", "syncing");
+  const redirectTo = `${location.origin}${location.pathname}`;
+  const { error } = await cloudClient.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } });
+  button.disabled = false;
+  if (error) return setCloudStatus(`Could not send link: ${error.message}`, "error");
+  setCloudStatus("Check your email and open the sign-in link on this device.", "success");
+});
+$("#sync-now").addEventListener("click", () => syncCloudState());
+$("#sign-out").addEventListener("click", async () => { if (cloudClient) await cloudClient.auth.signOut(); });
 $("#theme-toggle").addEventListener("click", () => applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"));
 $("#remember-key").addEventListener("change", persistApiKey);
 $("#toggle-key").addEventListener("click", () => {
@@ -584,6 +723,7 @@ $("#coverage-grid").addEventListener("click", (event) => {
   renderEpisodeGuide();
   renderCoverage();
   updateOutput();
+  saveProgress();
   toast(`Selected S${coverage.season}E${episode}`);
 });
 $("#bookmark-list").addEventListener("click", (event) => {
@@ -674,6 +814,7 @@ document.querySelectorAll("#imdb-id, #season, #episode, #tvdb-id, #tmdb-id").for
   }
   if (input.id === "imdb-id" || input.id === "season") { updateDefaultUI(); renderBookmarks(); }
   if (input.id === "imdb-id" || input.id === "season" || input.id === "episode") { renderEpisodeGuide(); renderCoverage(); }
+  if (input.id === "season" || input.id === "episode") saveProgress();
   updateOutput();
 }));
 $("#imdb-id").addEventListener("change", resolveManualEpisodeGuide);
@@ -684,6 +825,7 @@ $("#season").addEventListener("change", () => {
   updateDefaultUI();
   renderEpisodeGuide();
   updateOutput();
+  saveProgress();
   loadSeasonCoverage();
 });
 

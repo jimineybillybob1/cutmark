@@ -12,7 +12,9 @@ Direct submission requires an episode verified against TVmaze's regular-episode 
 
 For the selected season, Cutmark fetches a cached coverage summary through the Worker and shows at a glance which episodes currently have intro, recap, and outro data in IntroDB. Coverage reads are public and do not send the contributor's API key.
 
-Bookmarks and duration rules are saved in that browser's local storage. They survive reloads but do not sync between browsers or devices.
+Bookmarks, duration rules, and the last selected episode are always saved in that browser's local storage. Optional passwordless accounts can also sync those three items across devices through Supabase. Existing local data is merged into the account on first sign-in.
+
+Media, the personal IntroDB API key, unfinished timestamps, workflow choice, and theme preference remain device-local even when cloud sync is enabled.
 
 Cutmark includes light and dark themes. On the first visit it follows the device theme; an explicit choice is stored only on that device.
 
@@ -31,6 +33,12 @@ Then open `http://localhost:8080`.
 IntroDB permits browser API requests only from its own origin, so Cutmark uses a narrowly scoped Cloudflare Worker relay. Contributors supply their own IntroDB API key. The key is stored in session storage by default (or local storage only when explicitly requested), passes through the relay at submission time, and is never stored by the Worker.
 
 The Worker accepts requests only from Cutmark's GitHub Pages origin, validates the payload, and forwards only to IntroDB's `/submit` endpoint. Deploy it with `wrangler deploy --config worker/wrangler.toml`, then set its `/submit` URL in `config.js`.
+
+## Optional account sync
+
+The static frontend uses a Supabase publishable key, which is safe to expose in browser code. Row-level security on `cutmark_user_state` ensures an authenticated user can only access the row matching their own user ID. The schema and least-privilege grants are tracked in `supabase/migrations/`.
+
+Passwordless email sign-in requires the deployed GitHub Pages URL in Supabase's **Authentication → URL Configuration** as both the Site URL and an allowed redirect URL.
 
 ## Deploy
 

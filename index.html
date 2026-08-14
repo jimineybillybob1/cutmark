@@ -25,7 +25,8 @@
       </a>
       <div class="header-actions">
         <span class="local-badge"><span></span> Local-only media</span>
-        <button class="theme-toggle" id="theme-toggle" type="button" aria-pressed="false"><span aria-hidden="true">◐</span><span id="theme-label">Dark mode</span></button>
+        <button class="account-toggle" id="account-toggle" type="button" aria-label="Cloud sync and account"><span class="account-dot" aria-hidden="true"></span><span id="account-label">Cloud sync</span></button>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark mode" aria-pressed="false"><span aria-hidden="true">◐</span><span id="theme-label">Dark mode</span></button>
         <a href="https://introdb.app/docs/api" target="_blank" rel="noreferrer">API docs ↗</a>
       </div>
     </header>
@@ -97,7 +98,7 @@
             <div class="search-results" id="search-results" hidden></div>
           </div>
           <div class="saved-shows" id="saved-shows" hidden>
-            <div class="saved-heading"><span>Bookmarked shows</span><span>Stored on this device</span></div>
+            <div class="saved-heading"><span>Bookmarked shows</span><span>Available offline</span></div>
             <div class="bookmark-list" id="bookmark-list"></div>
           </div>
           <div class="selected-show" id="selected-show" hidden>
@@ -196,7 +197,26 @@
     </footer>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <dialog class="account-dialog" id="account-dialog" aria-labelledby="account-title">
+      <form method="dialog" class="account-dialog-head">
+        <div><p class="eyebrow">OPTIONAL ACCOUNT</p><h2 id="account-title">Keep your library in sync</h2></div>
+        <button class="dialog-close" value="close" aria-label="Close account settings">×</button>
+      </form>
+      <p class="account-intro">Sign in by email to sync bookmarks, show and season intro defaults, and your last selected episode across devices.</p>
+      <div class="account-privacy"><strong>Stays on this device</strong><span>Your IntroDB API key, media files, timestamps in progress, workflow, and theme are never uploaded.</span></div>
+      <div id="account-signed-out">
+        <label for="account-email">Email address</label>
+        <div class="account-email-entry"><input id="account-email" type="email" autocomplete="email" placeholder="you@example.com" /><button id="send-magic-link" type="button">Email sign-in link</button></div>
+        <p class="account-help">No password needed. Existing local bookmarks and defaults are merged into your account after sign-in.</p>
+      </div>
+      <div id="account-signed-in" hidden>
+        <div class="account-user"><span>Signed in as</span><strong id="account-user-email"></strong></div>
+        <div class="account-actions"><button id="sync-now" type="button">Sync now</button><button id="sign-out" type="button">Sign out</button></div>
+      </div>
+      <p class="cloud-status" id="cloud-status" role="status" aria-live="polite">Cloud sync is optional.</p>
+    </dialog>
     <script src="config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3"></script>
     <script type="module" src="app.js"></script>
   </body>
 </html>

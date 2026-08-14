@@ -26,10 +26,30 @@
           <p class="eyebrow">INTRODB CONTRIBUTOR TOOL</p>
           <h1 id="page-title">Find the cut.<br /><em>Mark the moment.</em></h1>
         </div>
-        <p class="hero-copy">Load an episode, capture its recap, intro, and outro boundaries, then hand off clean payloads for IntroDB. Your media never leaves this device.</p>
+        <p class="hero-copy">Search for a show and enter known timestamps, or load an episode and capture them while you watch. Both routes create the same clean IntroDB submission.</p>
       </section>
 
-      <section class="workspace">
+      <section class="workflow-picker" aria-labelledby="workflow-heading">
+        <div class="workflow-intro">
+          <p class="eyebrow">CHOOSE YOUR WORKFLOW</p>
+          <h2 id="workflow-heading">Two ways to mark a cut</h2>
+          <p>Switch at any time. Your show details and timestamps are kept.</p>
+        </div>
+        <div class="workflow-options">
+          <button class="workflow-option active" type="button" data-workflow="manual" aria-pressed="true">
+            <span class="workflow-number">01</span>
+            <span><strong>Search &amp; enter times</strong><small>Find the show, resolve its IMDb ID, then type timestamps you already know.</small></span>
+            <span class="workflow-arrow">→</span>
+          </button>
+          <button class="workflow-option" type="button" data-workflow="video" aria-pressed="false">
+            <span class="workflow-number">02</span>
+            <span><strong>Use a local video</strong><small>Play an episode and capture each boundary at the current position.</small></span>
+            <span class="workflow-arrow">→</span>
+          </button>
+        </div>
+      </section>
+
+      <section class="workspace manual-mode" id="workspace">
         <div class="player-panel">
           <div class="player-shell" id="drop-zone">
             <video id="video" controls preload="metadata" playsinline hidden></video>
@@ -38,6 +58,7 @@
               <h2>Drop an episode here</h2>
               <p>MP4, WebM, MKV, or any format your browser can play</p>
               <button class="primary" id="choose-file" type="button">Choose media file</button>
+              <button class="player-fallback" id="manual-fallback" type="button">File won’t play? Enter times manually</button>
               <input id="file-input" type="file" accept="video/*,.mkv" hidden />
             </div>
           </div>
@@ -55,7 +76,7 @@
         <aside class="details-panel" aria-labelledby="episode-heading">
           <div class="panel-heading">
             <p class="step">01</p>
-            <div><h2 id="episode-heading">Episode identity</h2><p>Tell IntroDB what you’re watching.</p></div>
+            <div><h2 id="episode-heading">Episode identity</h2><p id="episode-copy">Search by title to resolve the IMDb ID, or enter it directly.</p></div>
           </div>
           <div class="show-search">
             <label for="show-search">Find a TV show</label>
@@ -92,7 +113,7 @@
           </details>
           <div class="intro-defaults">
             <div class="defaults-heading"><strong>Intro duration shortcut</strong><span id="active-default">No default set</span></div>
-            <p>Set a usual duration, then capturing an intro start will fill its end automatically.</p>
+            <p>Set a usual duration, then entering or capturing an intro start will fill its end automatically.</p>
             <div class="default-controls">
               <select id="default-scope" aria-label="Default duration scope">
                 <option value="season">This season</option>
@@ -109,7 +130,7 @@
       <section class="markers-section" aria-labelledby="markers-heading">
         <div class="section-heading">
           <div><p class="step">02</p><h2 id="markers-heading">Mark the segments</h2></div>
-          <p>Pause at a boundary, then capture it. Fine-tune any value by typing a timestamp.</p>
+          <p id="marker-help">Type the timestamps you already know. Accepted formats include seconds, mm:ss, and hh:mm:ss.</p>
         </div>
         <div class="marker-grid" id="marker-grid"></div>
       </section>

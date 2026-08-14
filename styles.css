@@ -39,8 +39,25 @@ main { width: min(1400px, calc(100% - 40px)); margin: 0 auto; }
 h1 { font-size: clamp(56px, 8.4vw, 128px); line-height: .82; letter-spacing: -.075em; margin: 0; font-weight: 820; }
 h1 em { font-family: Georgia, "Times New Roman", serif; font-weight: 400; color: var(--orange); }
 .hero-copy { max-width: 430px; font-size: clamp(17px, 2vw, 22px); line-height: 1.45; margin: 0; color: #4f534e; }
+.workflow-picker { border-top: 1px solid var(--line); padding: 30px 0; display: grid; grid-template-columns: .55fr 1.45fr; gap: 30px; align-items: center; }
+.workflow-intro .eyebrow { margin-bottom: 10px; }
+.workflow-intro h2 { font-size: 25px; }
+.workflow-intro > p:last-child { color: var(--muted); font-size: 11px; margin: 8px 0 0; }
+.workflow-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.workflow-option { border: 1px solid var(--line); background: rgba(255,255,255,.22); border-radius: 14px; min-height: 104px; padding: 17px; display: grid; grid-template-columns: auto 1fr auto; gap: 13px; align-items: start; text-align: left; color: var(--ink); }
+.workflow-option:hover { border-color: var(--ink); }
+.workflow-option.active { background: var(--ink); color: white; border-color: var(--ink); }
+.workflow-number { font: 750 9px/1 ui-monospace, monospace; color: var(--orange); padding-top: 3px; }
+.workflow-option strong, .workflow-option small { display: block; }
+.workflow-option strong { font-size: 14px; letter-spacing: -.02em; }
+.workflow-option small { color: var(--muted); font-size: 10px; line-height: 1.45; margin-top: 6px; }
+.workflow-option.active small { color: #aeb3ae; }
+.workflow-arrow { align-self: center; font-size: 17px; color: var(--orange); }
 
 .workspace { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(290px, .65fr); border: 1px solid var(--ink); border-radius: var(--radius); overflow: hidden; background: var(--ink); }
+.workspace.manual-mode { grid-template-columns: 1fr; background: #ddd7ca; }
+.workspace.manual-mode .player-panel { display: none; }
+.workspace.manual-mode .details-panel { width: min(100%, 760px); margin: 0 auto; }
 .player-panel { min-width: 0; }
 .player-shell { aspect-ratio: 16/9; display: grid; background: #101211; position: relative; }
 .player-shell.dragging { outline: 3px solid var(--acid); outline-offset: -8px; }
@@ -49,6 +66,7 @@ video { width: 100%; height: 100%; object-fit: contain; background: #050606; }
 .empty-player .reel { margin: 0 auto 20px; width: 64px; height: 64px; border: 1px solid #555a56; border-radius: 50%; display: grid; place-items: center; color: var(--acid); font-size: 30px; }
 .empty-player h2 { margin: 0 0 8px; font-size: 24px; letter-spacing: -.035em; }
 .empty-player p { color: #969b96; margin: 0 0 24px; font-size: 13px; }
+.player-fallback { display: block; margin: 12px auto 0; border: 0; color: #aeb3ae; background: transparent; font-size: 10px; text-decoration: underline; }
 .primary, .secondary { border: 1px solid var(--ink); border-radius: 999px; min-height: 44px; padding: 0 20px; font-weight: 800; font-size: 13px; }
 .primary { background: var(--acid); color: var(--ink); }
 .secondary { background: transparent; color: var(--ink); }
@@ -131,6 +149,9 @@ summary { cursor: pointer; font-weight: 750; font-size: 12px; }
 .time-entry { display: grid; grid-template-columns: 1fr auto; }
 .time-entry input { min-width: 0; border: 1px solid var(--line); border-radius: 9px 0 0 9px; background: white; font: 700 14px/1 ui-monospace, monospace; padding: 12px; }
 .time-entry button { border: 1px solid var(--ink); background: var(--ink); color: white; border-radius: 0 9px 9px 0; padding: 0 12px; font-size: 11px; font-weight: 800; }
+.manual-workflow .time-entry { grid-template-columns: 1fr; }
+.manual-workflow .time-entry input { border-radius: 9px; }
+.manual-workflow [data-capture] { display: none; }
 .card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; min-height: 24px; }
 .segment-status { color: var(--muted); font: 700 11px/1 ui-monospace, monospace; }
 .segment-status.valid { color: #27764e; }
@@ -162,6 +183,7 @@ footer { border-top: 1px solid var(--line); padding: 28px clamp(20px, 4vw, 64px)
 
 @media (max-width: 900px) {
   .hero, .workspace, .export-section { grid-template-columns: 1fr; }
+  .workflow-picker { grid-template-columns: 1fr; }
   .hero { align-items: start; }
   .hero-copy { max-width: 650px; }
   .marker-grid { grid-template-columns: 1fr; }
@@ -177,6 +199,7 @@ footer { border-top: 1px solid var(--line); padding: 28px clamp(20px, 4vw, 64px)
   .local-badge { display: none; }
   .header-actions { gap: 14px; }
   .hero { padding-top: 50px; }
+  .workflow-options { grid-template-columns: 1fr; }
   h1 { font-size: clamp(49px, 16vw, 74px); }
   .section-heading { align-items: flex-start; flex-direction: column; }
   .transport { gap: 7px; }

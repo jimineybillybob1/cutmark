@@ -15,10 +15,16 @@ let objectUrl = "";
 let toastTimer;
 let searchResults = [];
 let selectedShow = null;
+let workflowMode = loadWorkflowMode();
 const storageKey = "cutmark-library-v1";
 const apiKeyStorageKey = "cutmark-introdb-api-key";
 const proxyUrl = window.CUTMARK_CONFIG?.proxyUrl || "";
 const library = loadLibrary();
+
+function loadWorkflowMode() {
+  try { return localStorage.getItem("cutmark-workflow") === "video" ? "video" : "manual"; }
+  catch { return "manual"; }
+}
 
 function loadLibrary() {
   try {
@@ -240,6 +246,7 @@ async function submitToIntroDB() {
 
 function loadFile(file) {
   if (!file) return;
+  setWorkflowMode("video");
   if (objectUrl) URL.revokeObjectURL(objectUrl);
   objectUrl = URL.createObjectURL(file);
   video.src = objectUrl;
@@ -247,6 +254,25 @@ function loadFile(file) {
   emptyPlayer.hidden = true;
   video.load();
   toast(`Loaded ${file.name}`);
+}
+
+function setWorkflowMode(mode, scroll = false) {
+  workflowMode = mode === "video" ? "video" : "manual";
+  try { localStorage.setItem("cutmark-workflow", workflowMode); } catch { /* The mode still works for this visit. */ }
+  $("#workspace").classList.toggle("manual-mode", workflowMode === "manual");
+  document.body.classList.toggle("manual-workflow", workflowMode === "manual");
+  document.querySelectorAll("[data-workflow]").forEach((button) => {
+    const active = button.dataset.workflow === workflowMode;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  $("#episode-copy").textContent = workflowMode === "manual"
+    ? "Search by title to resolve the IMDb ID, or enter it directly."
+    : "Identify the episode, then use the player to capture its boundaries.";
+  $("#marker-help").textContent = workflowMode === "manual"
+    ? "Type the timestamps you already know. Accepted formats include seconds, mm:ss, and hh:mm:ss."
+    : "Pause at a boundary and choose Use now, or type any timestamp manually if the file cannot be resolved.";
+  if (scroll) $("#workspace").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function capture(type, boundary) {
@@ -288,6 +314,7 @@ function toast(message) {
 }
 
 renderCards();
+setWorkflowMode(workflowMode);
 renderBookmarks();
 updateDefaultUI();
 loadApiKey();
@@ -306,6 +333,8 @@ $("#clear-key").addEventListener("click", () => { $("#api-key").value = ""; pers
 $("#submit-introdb").addEventListener("click", submitToIntroDB);
 
 $("#search-shows").addEventListener("click", searchShows);
+document.querySelectorAll("[data-workflow]").forEach((button) => button.addEventListener("click", () => setWorkflowMode(button.dataset.workflow, true)));
+$("#manual-fallback").addEventListener("click", () => setWorkflowMode("manual", true));
 $("#show-search").addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); searchShows(); } });
 $("#search-results").addEventListener("click", (event) => {
   const result = event.target.closest("[data-result-index]");

@@ -1,4 +1,4 @@
-import { buildPayloads, calculateIntroEnd, formatTime, mapTvmazeShows, parseTime, resolveIntroDuration, validateMeta } from "./core.js";
+import { buildEpisodeGuide, buildPayloads, calculateIntroEnd, formatTime, getNextEpisode, mapTvmazeShows, parseTime, resolveIntroDuration, validateEpisodeInGuide, validateMeta } from "./core.js";
 
 const types = [
   { id: "recap", accent: "#76a7ff", description: "Previously-on material before the episode begins." },
@@ -15,6 +15,8 @@ let objectUrl = "";
 let toastTimer;
 let searchResults = [];
 let selectedShow = null;
+let episodeGuide = { status: "idle", imdbId: "", tvmazeId: null, seasons: {} };
+let episodeGuideRequest = 0;
 let workflowMode = loadWorkflowMode();
 const storageKey = "cutmark-library-v1";
 const apiKeyStorageKey = "cutmark-introdb-api-key";
@@ -103,7 +105,103 @@ function selectShow(show) {
   renderSelectedShow();
   renderBookmarks();
   updateDefaultUI();
+  loadEpisodeGuide(show);
   updateOutput();
+}
+
+function setEpisodeGuideStatus(status, message) {
+  episodeGuide.status = status;
+  const panel = $("#episode-guide");
+  panel.dataset.state = status === "ready" ? (episodeGuideError() ? "error" : "valid") : status === "unavailable" ? "error" : status;
+  $("#episode-guide-status").textContent = message;
+}
+
+function episodeGuideError(meta = metadata()) {
+  if (episodeGuide.status === "loading" && episodeGuide.imdbId === meta.imdb_id.trim()) return "The episode guide is still loading.";
+  if (episodeGuide.status === "unavailable" && episodeGuide.imdbId === meta.imdb_id.trim()) return "The episode guide is unavailable; direct submission is paused.";
+  if (episodeGuide.status !== "ready" || episodeGuide.imdbId !== meta.imdb_id.trim()) return "Select a show from title search to verify its episodes.";
+  return validateEpisodeInGuide(episodeGuide.seasons, meta.season, meta.episode);
+}
+
+function renderEpisodeGuide() {
+  if (episodeGuide.status === "loading") return setEpisodeGuideStatus("loading", "Loading verified seasons and episodes…");
+  if (episodeGuide.status === "unavailable") return setEpisodeGuideStatus("unavailable", "Episode guide unavailable. Direct submission is paused; select the show from title search to retry.");
+  if (episodeGuide.status !== "ready" || episodeGuide.imdbId !== metadata().imdb_id.trim()) return setEpisodeGuideStatus("idle", "Select a show from title search to verify its episodes.");
+
+  const error = episodeGuideError();
+  if (error) return setEpisodeGuideStatus("ready", error);
+  const season = Number(metadata().season);
+  const episode = Number(metadata().episode);
+  const episodes = episodeGuide.seasons[String(season)];
+  const next = getNextEpisode(episodeGuide.seasons, season, episode);
+  $("#season").max = Math.max(...Object.keys(episodeGuide.seasons).map(Number));
+  $("#episode").max = Math.max(...episodes);
+  setEpisodeGuideStatus("ready", `S${season}E${episode} verified · ${episodes.length} episodes in season${next ? ` · next S${next.season}E${next.episode}` : " · final known episode"}`);
+}
+
+async function loadEpisodeGuide(show) {
+  const requestId = ++episodeGuideRequest;
+  const imdbId = show?.imdbId || metadata().imdb_id.trim();
+  episodeGuide = { status: "loading", imdbId, tvmazeId: show?.tvmazeId || null, seasons: {} };
+  renderEpisodeGuide();
+  updateOutput();
+  try {
+    let tvmazeId = Number(show?.tvmazeId) || null;
+    if (!tvmazeId && show?.name) {
+      const search = await fetch(`https://api.tvmaze.com/search/shows?q=${encodeURIComponent(show.name)}`);
+      if (!search.ok) throw new Error("Show lookup failed");
+      const match = mapTvmazeShows(await search.json()).find((item) => item.imdbId === imdbId);
+      tvmazeId = match?.tvmazeId || null;
+    }
+    if (!tvmazeId) throw new Error("No episode guide mapping");
+    const response = await fetch(`https://api.tvmaze.com/shows/${tvmazeId}/episodes`);
+    if (!response.ok) throw new Error("Episode guide failed");
+    const seasons = buildEpisodeGuide(await response.json());
+    if (!Object.keys(seasons).length) throw new Error("Episode guide is empty");
+    if (requestId !== episodeGuideRequest || metadata().imdb_id.trim() !== imdbId) return;
+    episodeGuide = { status: "ready", imdbId, tvmazeId, seasons };
+    if (selectedShow?.imdbId === imdbId) selectedShow.tvmazeId = tvmazeId;
+    const bookmark = library.bookmarks.find((item) => item.imdbId === imdbId);
+    if (bookmark && bookmark.tvmazeId !== tvmazeId) { bookmark.tvmazeId = tvmazeId; saveLibrary(); }
+    const currentError = validateEpisodeInGuide(seasons, metadata().season, metadata().episode);
+    if (currentError) {
+      const firstSeason = Math.min(...Object.keys(seasons).map(Number));
+      $("#season").value = firstSeason;
+      $("#episode").value = seasons[String(firstSeason)][0];
+    }
+    renderEpisodeGuide();
+    updateDefaultUI();
+    updateOutput();
+  } catch {
+    if (requestId !== episodeGuideRequest) return;
+    episodeGuide = { status: "unavailable", imdbId, tvmazeId: null, seasons: {} };
+    renderEpisodeGuide();
+    updateOutput();
+  }
+}
+
+async function resolveManualEpisodeGuide() {
+  const imdbId = metadata().imdb_id.trim();
+  const query = $("#show-search").value.trim();
+  if (!/^tt\d{7,8}$/.test(imdbId) || query.length < 2) {
+    episodeGuide = { status: "unavailable", imdbId, tvmazeId: null, seasons: {} };
+    renderEpisodeGuide();
+    updateOutput();
+    return;
+  }
+  try {
+    const response = await fetch(`https://api.tvmaze.com/search/shows?q=${encodeURIComponent(query)}`);
+    if (!response.ok) throw new Error("Search failed");
+    const match = mapTvmazeShows(await response.json()).find((show) => show.imdbId === imdbId);
+    if (!match) throw new Error("No matching show");
+    selectedShow = match;
+    renderSelectedShow();
+    await loadEpisodeGuide(match);
+  } catch {
+    episodeGuide = { status: "unavailable", imdbId, tvmazeId: null, seasons: {} };
+    renderEpisodeGuide();
+    updateOutput();
+  }
 }
 
 async function searchShows() {
@@ -169,12 +267,13 @@ function updateOutput() {
 
   const meta = metadata();
   const metaError = validateMeta(meta);
+  const guideError = episodeGuideError(meta);
   const payloads = buildPayloads(meta, segments);
   const enabled = payloads.length > 0 && !metaError;
   ["#copy-json", "#copy-curl", "#download-json", "#create-issue"].forEach((id) => { $(id).disabled = !enabled; });
-  $("#submit-introdb").disabled = !enabled || !validApiKey($("#api-key").value) || !proxyUrl;
+  $("#submit-introdb").disabled = !enabled || Boolean(guideError) || !validApiKey($("#api-key").value) || !proxyUrl;
   $("#payload-preview").textContent = payloads.length ? JSON.stringify(payloads.length === 1 ? payloads[0] : payloads, null, 2) : "No complete segments yet.";
-  $("#payload-summary").textContent = metaError && payloads.length ? metaError : payloads.length ? `${payloads.length} valid ${payloads.length === 1 ? "segment" : "segments"} ready for IntroDB.` : "Complete a segment to create an IntroDB payload.";
+  $("#payload-summary").textContent = metaError && payloads.length ? metaError : guideError && payloads.length ? guideError : payloads.length ? `${payloads.length} valid ${payloads.length === 1 ? "segment" : "segments"} ready for IntroDB.` : "Complete a segment to create an IntroDB payload.";
 }
 
 function validApiKey(value) {
@@ -217,6 +316,9 @@ function persistApiKey() {
 async function submitToIntroDB() {
   const payloads = payloadsOrWarn();
   if (!payloads) return;
+  const guideError = episodeGuideError();
+  if (guideError) return toast(guideError);
+  const submittedEpisode = { season: Number(metadata().season), episode: Number(metadata().episode) };
   const key = $("#api-key").value.trim();
   if (!validApiKey(key)) return toast("Enter a valid IntroDB API key first");
   const button = $("#submit-introdb");
@@ -233,8 +335,12 @@ async function submitToIntroDB() {
     const result = await response.json().catch(() => ({}));
     if (!response.ok || !result.ok) throw new Error(result.error || "IntroDB rejected the submission.");
     const accepted = result.results?.filter((item) => item.ok).length || payloads.length;
-    setConnectionStatus(`${accepted} ${accepted === 1 ? "segment" : "segments"} submitted successfully.`, "success");
-    toast("Submitted to IntroDB");
+    const next = getNextEpisode(episodeGuide.seasons, submittedEpisode.season, submittedEpisode.episode);
+    prepareAfterSubmission(next);
+    setConnectionStatus(next
+      ? `${accepted} ${accepted === 1 ? "segment" : "segments"} submitted. Moved to S${next.season}E${next.episode}.`
+      : `${accepted} ${accepted === 1 ? "segment" : "segments"} submitted. This is the final known episode.`, "success");
+    toast(next ? `Submitted · now on S${next.season}E${next.episode}` : "Submitted · final known episode");
   } catch (error) {
     setConnectionStatus(error.message || "Submission failed. Try the cURL fallback.", "error");
     toast("Submission failed");
@@ -242,6 +348,39 @@ async function submitToIntroDB() {
     button.textContent = originalLabel;
     updateOutput();
   }
+}
+
+function clearAllSegments() {
+  for (const { id } of types) {
+    segments[id] = { start: "", end: "" };
+    $(`#${id}-start`).value = "";
+    $(`#${id}-end`).value = "";
+  }
+}
+
+function unloadVideo() {
+  video.pause();
+  video.removeAttribute("src");
+  video.load();
+  video.hidden = true;
+  emptyPlayer.hidden = false;
+  fileInput.value = "";
+  $("#current-time").textContent = "00:00:00.000";
+  $("#duration").textContent = "/ 00:00:00.000";
+  if (objectUrl) URL.revokeObjectURL(objectUrl);
+  objectUrl = "";
+}
+
+function prepareAfterSubmission(next) {
+  clearAllSegments();
+  if (workflowMode === "video") unloadVideo();
+  if (next) {
+    $("#season").value = next.season;
+    $("#episode").value = next.episode;
+  }
+  updateDefaultUI();
+  renderEpisodeGuide();
+  updateOutput();
 }
 
 function loadFile(file) {
@@ -316,6 +455,7 @@ function toast(message) {
 renderCards();
 setWorkflowMode(workflowMode);
 renderBookmarks();
+renderEpisodeGuide();
 updateDefaultUI();
 loadApiKey();
 updateOutput();
@@ -417,10 +557,25 @@ $("#marker-grid").addEventListener("input", (event) => {
 });
 $("#intro-start").addEventListener("change", () => applyIntroDefault(true));
 document.querySelectorAll("#imdb-id, #season, #episode, #tvdb-id, #tmdb-id").forEach((input) => input.addEventListener("input", () => {
-  if (input.id === "imdb-id" && selectedShow?.imdbId !== input.value.trim()) { selectedShow = null; renderSelectedShow(); }
+  if (input.id === "imdb-id" && selectedShow?.imdbId !== input.value.trim()) {
+    selectedShow = null;
+    episodeGuideRequest += 1;
+    episodeGuide = { status: "idle", imdbId: input.value.trim(), tvmazeId: null, seasons: {} };
+    renderSelectedShow();
+  }
   if (input.id === "imdb-id" || input.id === "season") { updateDefaultUI(); renderBookmarks(); }
+  if (input.id === "imdb-id" || input.id === "season" || input.id === "episode") renderEpisodeGuide();
   updateOutput();
 }));
+$("#imdb-id").addEventListener("change", resolveManualEpisodeGuide);
+$("#season").addEventListener("change", () => {
+  if (episodeGuide.status !== "ready") return;
+  const episodes = episodeGuide.seasons[String(Number($("#season").value))];
+  if (episodes && !episodes.includes(Number($("#episode").value))) $("#episode").value = episodes[0];
+  updateDefaultUI();
+  renderEpisodeGuide();
+  updateOutput();
+});
 
 document.addEventListener("keydown", (event) => {
   if (["INPUT", "TEXTAREA"].includes(document.activeElement.tagName) || !video.src) return;

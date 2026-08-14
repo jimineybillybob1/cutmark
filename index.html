@@ -104,6 +104,10 @@
             <div class="field"><label for="season">Season</label><input id="season" type="number" min="1" value="1" /></div>
             <div class="field"><label for="episode">Episode</label><input id="episode" type="number" min="1" value="1" /></div>
           </div>
+          <div class="episode-guide" id="episode-guide" data-state="idle" role="status" aria-live="polite">
+            <span class="guide-dot" aria-hidden="true"></span>
+            <span id="episode-guide-status">Select a show from title search to verify its episodes.</span>
+          </div>
           <details>
             <summary>Optional matching IDs</summary>
             <div class="field-row optional-fields">

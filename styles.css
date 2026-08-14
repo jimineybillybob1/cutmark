@@ -119,6 +119,13 @@ h2 { margin: 0; font-size: 29px; letter-spacing: -.045em; line-height: 1; }
 .bookmark-button.saved { background: var(--acid); border-color: var(--ink); }
 .imdb-field small { margin-bottom: 18px; }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.episode-guide { display: flex; gap: 8px; align-items: flex-start; margin-top: 11px; min-height: 28px; padding: 8px 10px; border: 1px solid #bdb7aa; border-radius: 8px; color: var(--muted); font: 700 9px/1.45 ui-monospace, monospace; }
+.guide-dot { flex: 0 0 auto; width: 7px; height: 7px; margin-top: 3px; border-radius: 50%; background: #999d96; }
+.episode-guide[data-state="loading"] .guide-dot { background: var(--blue); box-shadow: 0 0 0 3px rgba(118,167,255,.18); }
+.episode-guide[data-state="valid"] { color: #27764e; border-color: rgba(39,118,78,.35); background: rgba(255,255,255,.2); }
+.episode-guide[data-state="valid"] .guide-dot { background: #36a269; box-shadow: 0 0 0 3px rgba(54,162,105,.14); }
+.episode-guide[data-state="error"] { color: #9c3f29; border-color: rgba(156,63,41,.35); }
+.episode-guide[data-state="error"] .guide-dot { background: var(--orange); }
 details { margin-top: 26px; border-top: 1px solid #bdb7aa; padding-top: 18px; }
 summary { cursor: pointer; font-weight: 750; font-size: 12px; }
 .optional-fields { margin-top: 18px; }

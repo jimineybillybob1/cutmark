@@ -75,10 +75,51 @@ export function mapTvmazeShows(results) {
     return [{
       name: String(show.name || imdbId),
       imdbId,
+      tvmazeId: Number(show.id) || null,
       tvdbId: Number(show.externals?.thetvdb) || null,
       image: show.image?.medium || "",
       premiered: show.premiered || "",
       network: show.network?.name || show.webChannel?.name || "",
     }];
   }).slice(0, 8);
+}
+
+export function buildEpisodeGuide(episodes) {
+  if (!Array.isArray(episodes)) return {};
+  const guide = {};
+  for (const episode of episodes) {
+    const season = Number(episode?.season);
+    const number = Number(episode?.number);
+    if (!Number.isInteger(season) || season < 1 || !Number.isInteger(number) || number < 1) continue;
+    if (episode.type && episode.type !== "regular") continue;
+    guide[String(season)] ||= [];
+    if (!guide[String(season)].includes(number)) guide[String(season)].push(number);
+  }
+  for (const numbers of Object.values(guide)) numbers.sort((a, b) => a - b);
+  return Object.fromEntries(Object.entries(guide).sort(([a], [b]) => Number(a) - Number(b)));
+}
+
+export function validateEpisodeInGuide(guide, season, episode) {
+  const seasonNumber = Number(season);
+  const episodeNumber = Number(episode);
+  const episodes = guide?.[String(seasonNumber)];
+  if (!episodes) return `Season ${seasonNumber} is not in the verified episode guide.`;
+  if (!episodes.includes(episodeNumber)) return `Episode ${episodeNumber} is not in season ${seasonNumber}.`;
+  return "";
+}
+
+export function getNextEpisode(guide, season, episode) {
+  if (validateEpisodeInGuide(guide, season, episode)) return null;
+  const seasonNumber = Number(season);
+  const episodeNumber = Number(episode);
+  const episodes = guide[String(seasonNumber)];
+  const index = episodes.indexOf(episodeNumber);
+  if (index < episodes.length - 1) return { season: seasonNumber, episode: episodes[index + 1] };
+  const seasons = Object.keys(guide).map(Number).sort((a, b) => a - b);
+  const seasonIndex = seasons.indexOf(seasonNumber);
+  if (seasonIndex < seasons.length - 1) {
+    const nextSeason = seasons[seasonIndex + 1];
+    return { season: nextSeason, episode: guide[String(nextSeason)][0] };
+  }
+  return null;
 }

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildPayloads, calculateIntroEnd, formatTime, mapTvmazeShows, parseTime, resolveIntroDuration, validateMeta } from "../core.js";
+import { buildEpisodeGuide, buildPayloads, calculateIntroEnd, formatTime, getNextEpisode, mapTvmazeShows, parseTime, resolveIntroDuration, validateEpisodeInGuide, validateMeta } from "../core.js";
 
 test("formats and parses timestamps", () => {
   assert.equal(formatTime(65.125), "00:01:05.125");
@@ -37,8 +37,29 @@ test("calculates an intro end from its start and saved duration", () => {
 
 test("translates TVmaze results to IMDb-backed choices", () => {
   const results = mapTvmazeShows([
-    { show: { name: "Breaking Bad", premiered: "2008-01-20", externals: { imdb: "tt0903747", thetvdb: 81189 }, network: { name: "AMC" }, image: { medium: "poster.jpg" } } },
+    { show: { id: 169, name: "Breaking Bad", premiered: "2008-01-20", externals: { imdb: "tt0903747", thetvdb: 81189 }, network: { name: "AMC" }, image: { medium: "poster.jpg" } } },
     { show: { name: "No IMDb mapping", externals: { imdb: null } } },
   ]);
-  assert.deepEqual(results, [{ name: "Breaking Bad", imdbId: "tt0903747", tvdbId: 81189, image: "poster.jpg", premiered: "2008-01-20", network: "AMC" }]);
+  assert.deepEqual(results, [{ name: "Breaking Bad", imdbId: "tt0903747", tvmazeId: 169, tvdbId: 81189, image: "poster.jpg", premiered: "2008-01-20", network: "AMC" }]);
+});
+
+test("builds a regular-episode guide and validates selections", () => {
+  const guide = buildEpisodeGuide([
+    { season: 1, number: 2, type: "regular" },
+    { season: 1, number: 1, type: "regular" },
+    { season: 1, number: 99, type: "special" },
+    { season: 2, number: 1, type: "regular" },
+  ]);
+  assert.deepEqual(guide, { 1: [1, 2], 2: [1] });
+  assert.equal(validateEpisodeInGuide(guide, 1, 2), "");
+  assert.match(validateEpisodeInGuide(guide, 1, 3), /not in season/i);
+  assert.match(validateEpisodeInGuide(guide, 3, 1), /not in the verified/i);
+});
+
+test("advances within a season and then to the next known season", () => {
+  const guide = { 1: [1, 2], 3: [1, 2] };
+  assert.deepEqual(getNextEpisode(guide, 1, 1), { season: 1, episode: 2 });
+  assert.deepEqual(getNextEpisode(guide, 1, 2), { season: 3, episode: 1 });
+  assert.equal(getNextEpisode(guide, 3, 2), null);
+  assert.equal(getNextEpisode(guide, 2, 1), null);
 });
